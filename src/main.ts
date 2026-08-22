@@ -41,12 +41,34 @@ function setView(v: View){
   render()
 }
 
+// high-brow cloth map — muted brass / oxblood / forest / stone
+const clothMap: Record<string,string> = {
+  'foundations': '#F6F0E8',
+  'buttons': '#C9A86A',
+  'forms': '#E8E0D5',
+  'cards': '#4A1C1C',
+  'navigation': '#1B3329',
+  'data-display': '#DED5C5',
+  'overlays': '#2A241E',
+  'marketing': '#E8D5A8',
+  'layouts': '#CBBFAD',
+  'media': '#2E5A45',
+  'feedback': '#7A3A2F',
+  'commerce': '#141210',
+}
+function clothOf(b: Book): string { return clothMap[b.id] || b.accent || '#E8E0D5' }
+function isDarkCloth(hex: string): boolean {
+  // simple luminance check for dark cloths that need light text
+  const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), bl=parseInt(h.slice(4,6),16);
+  return (r*0.299 + g*0.587 + bl*0.114) < 110;
+}
+
 function render(){
   const totalPlates = dictionary.length
   app.innerHTML = `
     <nav class="cb-nav">
       <div class="cb-nav-left">
-        <div class="cb-brand"><div class="cb-brand-dot">CB</div><span>Component Books</span><span style="opacity:.5;font-weight:400;margin-left:6px">12 vols / ${totalPlates} plates</span></div>
+        <div class="cb-brand"><div class="cb-brand-dot">B</div><span>Bhenre Collection</span><span>12 vols / ${totalPlates} plates</span></div>
         <div class="cb-tabs">
           ${(['library','reader','dictionary','atelier'] as View[]).map(v=>`
             <button class="cb-tab ${state.view===v?'active':''}" data-view="${v}">${v}</button>
@@ -54,8 +76,8 @@ function render(){
         </div>
       </div>
       <div class="cb-nav-right">
-        <span class="cb-count">paper #F9F6F0 • ink #2A2A2A • terracotta #C17C60</span>
-        <button class="cb-btn" id="shuffle-global" title="Shuffle atelier">↻ Shuffle</button>
+        <span class="cb-count">ivory #FFFEFB • ink #141210 • brass #C9A86A</span>
+        <button class="cb-btn" id="shuffle-global" title="Shuffle atelier">↻ Compose</button>
       </div>
     </nav>
     <main class="cb-main">
@@ -64,8 +86,9 @@ function render(){
       ${state.view==='dictionary' ? renderDictionary() : ''}
       ${state.view==='atelier' ? renderAtelier() : ''}
     </main>
-    <footer style="padding:24px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--ink-2);border-top:1px solid var(--paper-3);max-width:1280px;margin:0 auto;width:100%">
-      Built to avoid artifact token limits — real Vite site • Japandi v4 • Offline-ready • <span style="color:var(--terracotta)">Pudding-style editorial</span>
+    <footer style="padding:32px 24px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--stone-2);border-top:1px solid var(--paper-3);max-width:1320px;margin:0 auto;width:100%;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center">
+      <span style="display:flex;align-items:center;gap:10px"><span style="width:20px;height:1px;background:var(--brass);display:inline-block"></span> Bhenre Collection • Est. 2026 • Letterpress-grade • Offline-ready</span>
+      <span style="font-family:var(--serif);font-style:italic;text-transform:none;letter-spacing:0;color:var(--ink-2)">Set in Iowan Old Style / Palatino • Brass & oxblood & forest • 12 vols</span>
     </footer>
   `
   attachEvents()
@@ -73,36 +96,81 @@ function render(){
 
 function renderLibrary(){
   return `
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div class="cb-brass-plate"><b>Bhenre Collection</b> • Est. 2026 • Rare Book Room • 12 Vols • ${dictionary.length} Plates • Edition I</div>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2);display:flex;gap:12px;align-items:center">
+        <span>⁂ Ex Libris Bhenre</span><span style="width:1px;height:10px;background:var(--paper-3);display:inline-block"></span><span>No. ${String(dictionary.length).padStart(3,'0')} / 500</span>
+      </div>
+    </div>
     <div class="cb-hero">
       <div>
-        <div class="cb-kicker"><i></i> VOL. 1—12 • COMPENDIUM • 2026</div>
-        <h1>Like a chair book,<br/>but for web app parts.</h1>
-        <p>12 books, each comprehensive enough for any design dream. Foundations to Commerce. Pick plates, combine into new design systems. Built for zero-deps, real code, no mock data.</p>
+        <div class="cb-kicker"><i></i> VOL. I—XII • COMPENDIUM • MMXXVI <em style="margin-left:8px;color:var(--brass-3)">Clothbound • Foil • Letterpress</em></div>
+        <h1>A private library,<br/><i>for interface parts.</i></h1>
+        <p>Twelve clothbound volumes, each cut to accommodate any design dream. Foundations to Commerce — picked, bound, and composed in the Atelier. Set in Iowan Old Style, brass rules, walnut shelves. Zero-deps, real code, no mock data. For the high-brow builder.</p>
+        <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+          <span class="cb-badge" style="background:#141210;color:#FFFEFB;border-color:#141210">⁂ Letterpress sheet</span>
+          <span class="cb-badge">Brass foil titles</span>
+          <span class="cb-badge">Walnut & oxblood cloth</span>
+          <span class="cb-badge">Deckled edge shadows</span>
+        </div>
       </div>
-      <div style="font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink-2);background:#fff;border:1px solid var(--paper-3);border-radius:12px;padding:16px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>VOLUMES</span><span>12</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>PLATES</span><span>${dictionary.length}</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>STYLES</span><span>${allStyles().length}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>BUILD</span><span>vite + ts</span></div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--paper-3)">Click any book to read • Atelier to assemble a full site • Dictionary to search every plate</div>
+      <div class="cb-shelf-meta">
+        <div style="font-family:var(--serif-display);font-size:15px;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em">Shelf Card • Bhenre Collection</div>
+        <div class="row"><span>Volumes</span><span>12</span></div>
+        <div class="row"><span>Plates</span><span>${dictionary.length}</span></div>
+        <div class="row"><span>Styles</span><span>${allStyles().length}</span></div>
+        <div class="row"><span>Composition</span><span>ivory / ink / brass</span></div>
+        <div class="row"><span>Binding</span><span>cloth • foil • brass</span></div>
+        <div class="foot">Click any volume to read. Atelier to compose a full suite. Dictionary to search every plate. Each plate is set as a letterpress proof — generous margins, running heads, folio numbers.</div>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass-3);border:1px solid var(--paper-3);padding:3px 8px;border-radius:99px;background:var(--paper-2)">Ex Libris</span>
+          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);border:1px solid var(--paper-3);padding:3px 8px;border-radius:99px">Ed. I / 2026</span>
+          <span style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);border:1px solid var(--paper-3);padding:3px 8px;border-radius:99px">Bhenre • No. 001</span>
+        </div>
       </div>
     </div>
     <div class="cb-shelf">
-      ${books.map(b=>`
-        <div class="cb-book" data-book="${b.id}" style="--accent:${b.accent}">
-          <div class="cb-book-top" style="background:${b.accent}"></div>
+      ${books.map(b=>{
+        const cloth = clothOf(b);
+        const dark = isDarkCloth(cloth);
+        const foilClass = dark ? '' : 'foil';
+        return `
+        <div class="cb-book" data-book="${b.id}" style="--accent:${cloth}; --cloth:${cloth}">
+          <div class="cb-book-top" style="background: linear-gradient(90deg, ${cloth}, var(--brass), var(--brass-2))"></div>
+          <div class="cb-spine"><div class="cb-spine-dot"></div><div class="cb-spine-text">VOL. ${String(b.volume).padStart(2,'0')} — ${b.id.toUpperCase()} — BHENRE</div><div class="cb-spine-dot" style="opacity:.6"></div></div>
+          <div class="cb-exlibris" title="Ex Libris • Brass foil">⁂</div>
           <div class="cb-book-cover">
-            <div class="cb-book-meta"><span>VOL. ${String(b.volume).padStart(2,'0')}</span><span>${b.plates.length} plates</span></div>
-            <h3 class="cb-book-title">${b.title}</h3>
-            <p class="cb-book-desc">${b.description}</p>
+            <div class="cb-book-meta"><span>VOL. ${String(b.volume).padStart(2,'0')} • ED. I</span><span>${b.plates.length} plates</span></div>
+            <h3 class="cb-book-title ${foilClass}" style="${dark ? `color:#FFFEFB` : ''}">${b.title}</h3>
+            <p class="cb-book-desc" style="${dark ? `color:rgba(255,254,251,.72)` : ''}">${b.description}</p>
             <div class="cb-book-preview">
               ${b.plates[0] ? b.plates[0].html.slice(0,220) : '<div style="opacity:.5">Empty</div>'}
               <style>${b.plates[0]?.css || ''}</style>
             </div>
           </div>
-          <div class="cb-book-foot"><span>${b.id}</span><span class="cb-book-count">${b.plates.length} plates →</span></div>
+          <div class="cb-book-foot"><span style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:${cloth};border:1px solid var(--brass-3);display:inline-block"></span>${b.id} • cloth ${cloth}</span><span class="cb-book-count">${b.plates.length} plates →</span></div>
         </div>
-      `).join('')}
+      `}).join('')}
+    </div>
+    <div class="cb-colophon">
+      <div>
+        <h5>Colophon</h5>
+        <div style="font-family:var(--serif-display);font-size:14px;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em">Bhenre Collection • 12 Volumes • 214 Plates • 2026</div>
+        <p style="margin:0 0 10px">Set in Iowan Old Style and Palatino (styled as Canela / Freight Display) with Berkeley Mono for marginalia. Paper is ivory #FFFEFB with warm stone #E8E0D5, brass #C9A86A foil, oxblood #4A1C1C and forest #1B3329 cloth. Shadows are walnut, rules are brass, type is letterpress.</p>
+        <p style="margin:0;color:var(--stone-2);font-size:11.5px;font-family:var(--mono)">Printed as code — zero-deps, system fonts only, no external fetches. Each plate is a live specimen, not a mock. Composed in the Atelier, bound in the Library.</p>
+      </div>
+      <div style="border-left:1px dashed var(--paper-3);padding-left:20px">
+        <h5>Edition Details</h5>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-family:var(--mono);font-size:11px">
+          <span style="color:var(--stone-2)">EDITION</span><span>First • 2026 • No. 001/500</span>
+          <span style="color:var(--stone-2)">BINDING</span><span>Cloth • Brass foil • Deckled shadows</span>
+          <span style="color:var(--stone-2)">PAPER</span><span>Ivory #FFFEFB • Stone #E8E0D5</span>
+          <span style="color:var(--stone-2)">TYPE</span><span>Iowan Old Style • Palatino • Mono</span>
+          <span style="color:var(--stone-2)">MARKS</span><span>⁂ Ex Libris • Brass plate • Folio</span>
+        </div>
+        <div class="mark" style="margin-top:14px">⁂</div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass-3);margin-top:6px">Bhenre Collection • Est. MMXXVI</div>
+      </div>
     </div>
   `
 }
@@ -111,14 +179,21 @@ function renderReader(){
   const book = booksById[state.readerBook] || books[0]
   const plate = book.plates.find(p=>p.id===state.readerPlate) || book.plates[0]
   if (!plate) return `<div class="cb-empty">No plates in this volume yet — subagents still writing comprehensive plates.</div>`
+  const folioNum = (book.volume*100 + (book.plates.findIndex(p=>p.id===plate.id)+1)).toString().padStart(3,'0')
   return `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div class="cb-kicker"><i></i> READER • VOL. ${book.volume} • ${book.title.toUpperCase()}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="cb-kicker" style="margin:0"><i></i> READER • VOL. ${String(book.volume).padStart(2,'0')} • ${book.title.toUpperCase()} • FOLIO ${folioNum}</div>
+        <div class="cb-brass-plate" style="padding:6px 12px;font-size:9px"><b>${book.title}</b> • ${plate.name} • Ed. I</div>
+      </div>
       <div style="display:flex;gap:8px"><button class="cb-btn" id="prev-plate">← Prev</button><button class="cb-btn" id="next-plate">Next →</button></div>
     </div>
     <div class="cb-reader">
       <div class="cb-rail">
-        <h3>${book.title} — ${book.plates.length} plates</h3>
+        <h3>${book.title} — ${book.plates.length} plates • <span style="color:var(--brass-3)">⁂ ${clothOf(book)}</span></h3>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2);margin-bottom:10px;display:flex;justify-content:space-between">
+          <span>Card Cat. • Vol. ${book.volume}</span><span>Ed. I • 2026</span>
+        </div>
         <div class="cb-plate-list">
           ${book.plates.map(p=>`
             <div class="cb-plate-item ${p.id===plate.id?'active':''}" data-plate="${p.id}">
@@ -126,45 +201,67 @@ function renderReader(){
             </div>
           `).join('')}
         </div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--paper-3);font-family:var(--mono);font-size:9.5px;color:var(--stone-2);display:flex;justify-content:space-between">
+          <span>⁂ Ex Libris</span><span>${book.id} • ${clothOf(book)}</span>
+        </div>
       </div>
       <div class="cb-stage">
         <div class="cb-stage-head">
-          <div><span class="cb-stage-title">${plate.name}</span> <span style="margin-left:8px" class="cb-badge">${plate.style}</span></div>
+          <div><span class="cb-stage-title">${plate.name}</span> <span style="margin-left:8px" class="cb-badge" style="border-color:var(--brass);color:var(--brass-3)">${plate.style} • foil</span></div>
           <div style="display:flex;gap:6px"><button class="cb-btn" data-copy="html">Copy HTML</button><button class="cb-btn" data-copy="css">Copy CSS</button></div>
         </div>
         <div class="cb-stage-body">
-          <div class="cb-stage-live" id="live-root">${plate.html}<style>${plate.css}</style></div>
+          <div class="cb-stage-live" id="live-root">
+            <div class="cb-folio"><span><b>Bhenre Collection</b> • ${book.title} • Vol. ${book.volume}</span><span>Folio ${folioNum} • Plate ${(book.plates.findIndex(p=>p.id===plate.id)+1).toString().padStart(2,'0')} / ${book.plates.length}</span></div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-3);margin-bottom:12px;display:flex;gap:8px;align-items:center">
+              <span>⁂</span><span>${plate.id}</span><span style="width:12px;height:1px;background:var(--paper-3);display:inline-block"></span><span>${plate.style}</span>
+            </div>
+            ${plate.html}
+            <style>${plate.css}</style>
+            <div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--paper-3);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9.5px;color:var(--stone-2)">
+              <span>— ${plate.name} • ${book.title} • set in letterpress</span><span>⁂ ${folioNum}</span>
+            </div>
+          </div>
         </div>
         <div class="cb-code">
           <div class="cb-code-tabs">
-            <button class="cb-code-tab ${state.codeTab==='html'?'active':''}" data-code="html">HTML</button>
-            <button class="cb-code-tab ${state.codeTab==='css'?'active':''}" data-code="css">CSS</button>
-            <button class="cb-code-tab ${state.codeTab==='props'?'active':''}" data-code="props">PROPS</button>
+            <button class="cb-code-tab ${state.codeTab==='html'?'active':''}" data-code="html">HTML • proof</button>
+            <button class="cb-code-tab ${state.codeTab==='css'?'active':''}" data-code="css">CSS • spec</button>
+            <button class="cb-code-tab ${state.codeTab==='props'?'active':''}" data-code="props">PROPS • colophon</button>
           </div>
           <div id="code-view">${state.codeTab==='html' ? escapeHtml(plate.html) : state.codeTab==='css' ? escapeHtml(plate.css) : escapeHtml((plate.props||[]).join('\n') + '\n\nTokens:\n' + (plate.tokens||[]).map(t=>`${t.name}: ${t.value} // ${t.usage}`).join('\n'))}</div>
         </div>
       </div>
       <div class="cb-inspector">
         <div>
-          <h4>Plate</h4>
-          <div style="font-family:var(--serif);font-size:16px;margin-bottom:6px">${plate.name}</div>
-          <div style="font-size:12.5px;color:var(--ink-2);line-height:1.5">${plate.description}</div>
+          <h4>Plate • Folio ${folioNum}</h4>
+          <div style="font-family:var(--serif-display);font-size:18px;margin-bottom:6px;letter-spacing:-.01em">${plate.name}</div>
+          <div class="cb-dropcap" style="font-size:13px;color:var(--ink-2);line-height:1.55;font-family:var(--serif)">${plate.description}</div>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <span class="cb-badge" style="border-color:var(--brass);color:var(--brass-3)">⁂ ${plate.style}</span>
+            <span class="cb-badge">${book.title}</span>
+            <span class="cb-badge" style="background:var(--ink);color:var(--ivory);border-color:var(--ink)">${clothOf(book)} cloth</span>
+          </div>
         </div>
         <div>
-          <h4>Tokens</h4>
-          ${(plate.tokens||[]).map(t=>`<div class="cb-token-row"><span>${t.name}</span><span style="color:var(--terracotta)">${t.value}</span></div>`).join('') || '<div style="font-size:12px;color:var(--ink-2)">No tokens — uses global</div>'}
+          <h4>Tokens • Brass rule</h4>
+          ${(plate.tokens||[]).map(t=>`<div class="cb-token-row"><span>${t.name}</span><span style="color:var(--brass-3)">${t.value}</span></div>`).join('') || '<div style="font-size:12px;color:var(--ink-2)">No tokens — uses global • ivory / brass / ink</div>'}
         </div>
         <div>
-          <h4>Props</h4>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">${(plate.props||[]).map(p=>`<span class="cb-prop">${p}</span>`).join('') || '<span class="cb-badge">none</span>'}</div>
+          <h4>Props • Type case</h4>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${(plate.props||[]).map(p=>`<span class="cb-prop">${p}</span>`).join('') || '<span class="cb-badge">none • default measure</span>'}</div>
         </div>
         <div>
-          <h4>Use cases</h4>
-          <div style="font-size:12px;line-height:1.5">${(plate.useCases||[]).join(' • ') || 'general'}</div>
+          <h4>Use cases • Marginalia</h4>
+          <div style="font-size:12px;line-height:1.55;font-family:var(--serif);font-style:italic">${(plate.useCases||[]).join(' • ') || 'general • editorial • atelier'}</div>
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="cb-btn primary" id="use-in-atelier">Use in Atelier</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="cb-btn primary" id="use-in-atelier">Use in Atelier →</button>
           <button class="cb-btn" id="view-dict">Dictionary</button>
+        </div>
+        <div style="margin-top:4px;padding:10px 12px;background:var(--paper-2);border:1px dashed var(--paper-3);border-radius:8px;font-family:var(--mono);font-size:10px;color:var(--ink-2);line-height:1.5">
+          <div style="color:var(--brass-3);font-weight:700;letter-spacing:.10em;margin-bottom:4px">EDITION NOTE</div>
+          First Edition • 2026 • Bhenre Collection • No. 001<br/>Cloth ${clothOf(book)} • Brass foil • Folio ${folioNum}<br/>⁂ Ex Libris
         </div>
       </div>
     </div>

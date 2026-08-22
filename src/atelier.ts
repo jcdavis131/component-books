@@ -4,12 +4,12 @@ import { booksById } from './books.ts'
 export const defaultTokens: DesignTokens = {
   radius: '12px',
   shadow: 'soft',
-  accent: '#C17C60',
-  paper: '#F9F6F0',
-  ink: '#2A2A2A',
+  accent: '#C9A86A',
+  paper: '#FFFEFB',
+  ink: '#141210',
   fontSans: 'ui-sans-system, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  fontSerif: '"Instrument Serif", "Newsreader", ui-serif, Georgia, serif',
-  fontMono: 'ui-monospace, "JetBrains Mono", monospace',
+  fontSerif: '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, ui-serif, Georgia, serif',
+  fontMono: 'ui-monospace, "Berkeley Mono", "SF Mono", monospace',
   density: 'cozy'
 }
 
