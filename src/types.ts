@@ -59,4 +59,5 @@ export interface DesignTokens {
   density: 'compact' | 'cozy' | 'airy'
 }
 
-export type View = 'library' | 'reader' | 'dictionary' | 'atelier' | 'thinking'
+export type View = 'guide' | 'catalogue' | 'studio' | 'library' | 'reader' | 'dictionary' | 'atelier' | 'thinking'
+

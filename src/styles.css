@@ -1178,4 +1178,570 @@ img{display:block;max-width:100%}
   margin-top:8px;
 }
 
+/* ===================================================================
+   MOBILE-FIRST RESPONSIVE LAYER — Bhenre Collection
+   Base = 320px. Enhances up to 1320px. No deps. Brass + ivory intact.
+   =================================================================== */
+
+/* 0) Utilities — mobile/desktop visibility */
+.cb-mobile-only{display:none !important}
+.cb-desktop-only{display:flex !important}
+@media(max-width:720px){
+  .cb-desktop-only{display:none !important}
+  .cb-mobile-only{display:flex !important}
+}
+
+/* 1) Root responsive tokens — mobile-first */
+:root{
+  --content-pad: 16px;
+  --nav-h: 56px;
+}
+@media(min-width:480px){ :root{ --content-pad: 18px } }
+@media(min-width:768px){ :root{ --content-pad: 24px; --nav-h: 62px } }
+@media(min-width:1024px){ :root{ --content-pad: 32px } }
+
+/* 2) Base reset — prevent horizontal overflow */
+html, body{ overflow-x:hidden; max-width:100vw }
+#app{ overflow-x:clip }
+.cb-main{
+  padding:20px var(--content-pad) 56px;
+  max-width:100vw;
+}
+@media(min-width:768px){ .cb-main{ padding:28px var(--content-pad) 72px } }
+@media(min-width:1024px){ .cb-main{ padding:40px var(--content-pad) 88px } }
+
+/* Typography scales mobile-first */
+.cb-hero h1{ font-size: clamp(28px, 8vw, 62px) }
+.cb-hero p{ font-size:15px; line-height:1.6 }
+@media(min-width:768px){ .cb-hero p{ font-size:16px } }
+@media(min-width:1024px){ .cb-hero p{ font-size:17px } }
+
+/* 3) NAV — mobile: scrollable tabs, compact brand, icon-only compose */
+.cb-nav{
+  padding:0 12px;
+  gap:8px;
+  height:var(--nav-h);
+  flex-wrap:nowrap;
+}
+.cb-nav-left{
+  gap:12px;
+  min-width:0;
+  flex:1;
+  overflow:hidden;
+}
+.cb-brand{
+  font-size:15px;
+  gap:10px;
+  flex-shrink:0;
+}
+.cb-brand span:nth-child(3){
+  display:none; /* hide vol count on mobile, show on desktop */
+}
+@media(min-width:860px){
+  .cb-brand span:nth-child(3){ display:inline }
+}
+.cb-tabs{
+  display:flex;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  gap:4px;
+  min-width:0;
+  flex:1;
+  padding-bottom:2px;
+}
+.cb-tabs::-webkit-scrollbar{ display:none }
+.cb-tab{
+  white-space:nowrap;
+  flex-shrink:0;
+  min-height:36px;
+  padding:6px 12px;
+  font-size:10px;
+}
+@media(min-width:768px){
+  .cb-tab{ min-height:32px; padding:7px 14px; font-size:10.5px }
+}
+.cb-nav-right{
+  gap:8px;
+  flex-shrink:0;
+}
+.cb-count{ display:none }
+@media(min-width:1024px){ .cb-count{ display:inline-flex } }
+
+/* Ensure tabs don't wrap, compose button compact on mobile */
+#shuffle-global{
+  min-height:36px;
+  padding:6px 10px;
+  font-size:11px;
+  white-space:nowrap;
+}
+@media(max-width:480px){
+  #shuffle-global{ padding:6px 8px; font-size:10px }
+}
+
+/* 4) HERO + SHELF META — mobile 1 col */
+.cb-hero{
+  grid-template-columns:1fr;
+  gap:20px;
+  margin:4px 0 28px;
+}
+@media(min-width:980px){
+  .cb-hero{ grid-template-columns:1.28fr .72fr; gap:40px; align-items:end }
+}
+.cb-shelf-meta{
+  order:2;
+}
+.cb-shelf-meta .row{ font-size:11px }
+
+/* Manifesto grid — class for inline style replacement */
+.cb-manifesto-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:18px;
+  margin:0 0 24px;
+  padding:18px 16px 16px;
+  background:#fff;
+  border:1px solid var(--paper-3);
+  border-radius:12px;
+  box-shadow:var(--shadow-sm);
+  position:relative;
+  overflow:hidden;
+}
+.cb-manifesto-grid::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg, var(--brass-3), var(--brass), var(--brass-2));
+}
+.cb-manifesto-grid > div:last-child{
+  border-left:none;
+  padding-left:0;
+  border-top:1px dashed var(--paper-3);
+  padding-top:14px;
+}
+@media(min-width:860px){
+  .cb-manifesto-grid{
+    grid-template-columns:1.15fr .85fr;
+    gap:28px;
+    padding:22px 22px 20px;
+  }
+  .cb-manifesto-grid > div:last-child{
+    border-left:1px dashed var(--paper-3);
+    border-top:none;
+    padding-left:22px;
+    padding-top:0;
+  }
+}
+
+/* 5) SHELF — mobile-first 1 col, then 2, then 4 */
+.cb-shelf{
+  grid-template-columns:1fr;
+  gap:16px;
+}
+@media(min-width:480px){
+  .cb-shelf{ grid-template-columns:1fr; gap:16px }
+}
+@media(min-width:640px){
+  .cb-shelf{ grid-template-columns:repeat(2,1fr); gap:14px }
+}
+@media(min-width:1024px){
+  .cb-shelf{ grid-template-columns:repeat(12,1fr); gap:20px 18px }
+  .cb-book{ grid-column:span 3 }
+}
+.cb-book{
+  min-height:300px;
+  grid-column:span 1;
+}
+@media(min-width:640px){ .cb-book{ min-height:320px } }
+@media(min-width:1024px){ .cb-book{ min-height:332px; grid-column:span 3 } }
+
+/* Book cover padding already offset for spine — ensure no overflow */
+.cb-book-cover, .cb-book-foot{
+  max-width:100%;
+  overflow:hidden;
+}
+.cb-book-preview{
+  height:120px;
+}
+@media(min-width:768px){ .cb-book-preview{ height:132px } }
+
+/* 6) CURATIONS — mobile 1 col */
+.cb-curations{
+  grid-template-columns:1fr;
+  gap:12px;
+}
+@media(min-width:640px){ .cb-curations{ grid-template-columns:repeat(2,1fr) } }
+@media(min-width:1024px){ .cb-curations{ grid-template-columns:repeat(12,1fr); gap:14px } .cb-curation{ grid-column:span 3 } }
+.cb-curation{ grid-column:span 1; min-height:260px }
+
+/* Thinking / Guides preview grids — ensure 1 col on mobile */
+.cb-thinking-card, .cb-guide-card{
+  min-width:0;
+  max-width:100%;
+}
+@media(max-width:640px){
+  [style*="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"]{
+    grid-template-columns:1fr !important;
+  }
+}
+
+/* 7) READER — mobile stack */
+.cb-reader{
+  grid-template-columns:1fr;
+  gap:16px;
+}
+@media(min-width:760px){
+  .cb-reader{ grid-template-columns:208px 1fr; gap:18px }
+}
+@media(min-width:1080px){
+  .cb-reader{ grid-template-columns:228px 1fr 304px; gap:24px }
+}
+.cb-rail{
+  position:static;
+  top:auto;
+  max-height:none;
+  overflow:visible;
+}
+@media(min-width:1080px){
+  .cb-rail{
+    position:sticky;
+    top:calc(var(--nav-h) + 22px);
+    align-self:start;
+    max-height: calc(100vh - var(--nav-h) - 44px);
+    overflow:auto;
+  }
+}
+.cb-rail h3{ font-size:10px }
+.cb-plate-item{
+  min-height:44px; /* touch target */
+  padding:10px 10px;
+  font-size:13px;
+}
+.cb-stage{
+  min-width:0;
+  max-width:100%;
+}
+.cb-stage-head{
+  flex-wrap:wrap;
+  gap:10px;
+  padding:12px 14px;
+}
+.cb-stage-body{
+  padding:20px 16px;
+  min-height:320px;
+}
+@media(min-width:768px){
+  .cb-stage-body{ padding:28px 22px }
+}
+@media(min-width:1024px){
+  .cb-stage-body{ padding:34px 28px }
+}
+.cb-stage-live{
+  max-width:100%;
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+.cb-stage-live *{
+  max-width:100%;
+}
+.cb-folio{
+  flex-wrap:wrap;
+  gap:8px;
+  font-size:9px;
+}
+.cb-inspector{
+  position:static;
+  max-width:100%;
+}
+@media(min-width:1080px){
+  .cb-inspector{
+    position:sticky;
+    top:calc(var(--nav-h) + 22px);
+  }
+}
+.cb-code{
+  font-size:11px;
+  max-height:240px;
+  overflow-x:auto;
+}
+@media(min-width:768px){ .cb-code{ max-height:300px; font-size:11.5px } }
+
+/* 8) DICTIONARY — 1 col mobile */
+.cb-dict-head{
+  flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+}
+@media(min-width:720px){
+  .cb-dict-head{ flex-direction:row; flex-wrap:wrap; align-items:center }
+}
+.cb-search{
+  min-width:0;
+  width:100%;
+}
+.cb-filters{
+  width:100%;
+  overflow-x:auto;
+  flex-wrap:nowrap;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:2px;
+}
+.cb-filters::-webkit-scrollbar{ display:none }
+.cb-filter, .cb-search .cb-badge{
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.cb-grid{
+  grid-template-columns:1fr;
+  gap:12px;
+}
+@media(min-width:640px){
+  .cb-grid{ grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px }
+}
+@media(min-width:1024px){
+  .cb-grid{ grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px }
+}
+.cb-plate-card-preview{ height:132px }
+
+/* 9) ATELIER — stack on mobile */
+.cb-atelier{
+  grid-template-columns:1fr;
+  gap:16px;
+}
+@media(min-width:820px){
+  .cb-atelier{ grid-template-columns:1fr; gap:16px }
+}
+@media(min-width:1140px){
+  .cb-atelier{ grid-template-columns:284px 1fr; gap:20px }
+}
+@media(min-width:1320px){
+  .cb-atelier{ grid-template-columns:304px 1fr 328px; gap:20px }
+}
+.cb-atelier-panel{
+  position:static;
+  max-width:100%;
+}
+@media(min-width:1140px){
+  .cb-atelier-panel{
+    position:sticky;
+    top:calc(var(--nav-h) + 20px);
+  }
+}
+.cb-atelier-preview{
+  min-height:480px;
+  max-width:100%;
+}
+@media(min-width:768px){ .cb-atelier-preview{ min-height:60vh } }
+@media(min-width:1140px){ .cb-atelier-preview{ min-height:76vh } }
+.cb-atelier-page{
+  max-width:100%;
+  overflow-x:auto;
+}
+.cb-field select, .cb-field input{
+  min-height:44px; /* touch */
+  font-size:14px;
+}
+.cb-btn{
+  min-height:36px;
+  padding:8px 14px;
+}
+@media(max-width:480px){
+  .cb-btn{ min-height:44px; font-size:12px }
+}
+
+/* 10) THINKING / DECISION WALKTHROUGH — mobile top progress, stacked */
+.cb-decision{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+}
+@media(min-width:1024px){
+  .cb-decision{ grid-template-columns:240px 1fr 320px; gap:22px }
+}
+.cb-decision-rail{
+  position:static;
+}
+@media(min-width:1024px){
+  .cb-decision-rail{
+    position:sticky;
+    top:calc(var(--nav-h) + 20px);
+    align-self:start;
+  }
+}
+.cb-stepper{
+  display:flex;
+  overflow-x:auto;
+  gap:8px;
+  padding:8px 0 10px;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+.cb-stepper::-webkit-scrollbar{ display:none }
+@media(min-width:1024px){
+  .cb-stepper{ flex-direction:column; overflow:visible }
+}
+.cb-step{
+  min-height:44px;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+@media(min-width:1024px){
+  .cb-step{ white-space:normal }
+}
+.cb-decision-center{
+  min-width:0;
+  max-width:100%;
+}
+.cb-option-card{
+  min-width:0;
+  max-width:100%;
+}
+.cb-viz-practice{
+  padding:14px;
+}
+@media(min-width:768px){ .cb-viz-practice{ padding:18px } }
+
+/* Thinking article — centered prose mobile-first */
+.cb-thinking-article{
+  padding:20px 16px;
+  max-width:100%;
+}
+@media(min-width:768px){
+  .cb-thinking-article{ padding:28px 24px; max-width:72ch }
+}
+@media(min-width:1024px){
+  .cb-thinking-article{ padding:32px 36px; max-width:68ch }
+}
+.cb-thinking-article h2{
+  font-size: clamp(22px, 6vw, 28px);
+  line-height:1.12;
+}
+.cb-thinking-article p, .cb-thinking-article div{
+  font-size:15px;
+  line-height:1.65;
+}
+@media(min-width:768px){
+  .cb-thinking-article p, .cb-thinking-article div{ font-size:14px; line-height:1.7 }
+}
+
+/* 11) MODAL / CAROUSEL / DESIGN CARDS — responsive */
+.cb-modal-overlay{
+  padding:12px;
+}
+@media(min-width:768px){ .cb-modal-overlay{ padding:24px } }
+.cb-modal{
+  width:100%;
+  height:92vh;
+  max-width:100%;
+}
+@media(min-width:768px){ .cb-modal{ width:min(92vw,1180px); height:min(92vh,860px) } }
+.cb-modal-hero{
+  grid-template-columns:1fr;
+  gap:16px;
+  padding:18px 16px;
+}
+@media(min-width:860px){
+  .cb-modal-hero{ grid-template-columns:1.15fr .85fr; gap:22px; padding:22px 24px 18px }
+}
+.cb-modal-grid{
+  grid-template-columns:1fr;
+  padding:14px;
+  gap:12px;
+}
+@media(min-width:860px){ .cb-modal-grid{ grid-template-columns:repeat(2,1fr); gap:16px; padding:18px 20px 20px } }
+.cb-modal-scoregrid{
+  grid-template-columns:repeat(2,1fr);
+}
+@media(min-width:480px){ .cb-modal-scoregrid{ grid-template-columns:repeat(4,1fr) } }
+.cb-carousel{
+  gap:12px;
+  padding:0 12px 14px;
+}
+@media(min-width:768px){ .cb-carousel{ gap:16px; padding:0 18px 16px } }
+.cb-design-card{
+  min-width:280px;
+  width:280px;
+  height:380px;
+}
+@media(min-width:768px){
+  .cb-design-card{ min-width:300px; width:300px; height:400px }
+  .cb-design-card.featured{ min-width:340px; width:340px }
+}
+
+/* 12) FOOTER + COLOPHON — stack mobile */
+footer{
+  flex-direction:column;
+  align-items:flex-start !important;
+  gap:12px !important;
+  padding:20px 16px !important;
+  text-align:left !important;
+}
+@media(min-width:768px){
+  footer{
+    flex-direction:row !important;
+    align-items:center !important;
+    justify-content:space-between !important;
+    padding:32px 24px !important;
+  }
+}
+.cb-colophon{
+  grid-template-columns:1fr;
+  gap:18px;
+  padding:18px 16px;
+}
+@media(min-width:800px){
+  .cb-colophon{ grid-template-columns:1.1fr .9fr; gap:24px; padding:24px 28px }
+}
+.cb-colophon div[style*="border-left"]{
+  border-left:none !important;
+  border-top:1px dashed var(--paper-3);
+  padding-left:0 !important;
+  padding-top:16px;
+}
+@media(min-width:800px){
+  .cb-colophon div[style*="border-left"]{
+    border-left:1px dashed var(--paper-3) !important;
+    border-top:none !important;
+    padding-left:20px !important;
+    padding-top:0 !important;
+  }
+}
+
+/* 13) PREVIEW SAFETY — prevent plate overflow */
+.cb-stage-live > div, .cb-stage-live > section, .cb-atelier-page > div, .cb-atelier-page > section{
+  max-width:100%;
+  overflow-wrap:break-word;
+}
+.cb-stage-live img, .cb-atelier-page img, .cb-plate-card-preview img{
+  max-width:100%;
+  height:auto;
+}
+.cb-stage-live pre, .cb-code, .cb-token-export{
+  max-width:100%;
+  overflow-x:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+/* 14) TOUCH + ACCESSIBILITY */
+@media(pointer:coarse){
+  .cb-tab, .cb-btn, .cb-plate-item, .cb-filter, .cb-code-tab{
+    min-height:44px;
+  }
+  .cb-tab{ padding:8px 14px }
+}
+
+/* 15) REDUCED MOTION / CONTRAST guard */
+@media(prefers-reduced-motion:reduce){
+  *{ animation-duration:.01ms !important; transition-duration:.01ms !important }
+}
+
+/* 16) Decision guide future classes — ensure mobile works if other agent hasn't yet created */
+.cb-decision-center, .cb-thinking-article, .cb-option-card{
+  overflow-wrap:break-word;
+  word-break:break-word;
+}
+
+
 
