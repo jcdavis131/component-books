@@ -1,7 +1,9 @@
 import { books, booksById } from './books.ts'
 import type { View, Plate, Book, DesignTokens } from './types.ts'
 import { searchDict, allStyles, dictionary } from './dictionary.ts'
-import { createInitialAtelier, tokensToCss, tokensToTailwind, tokensToJson, shufflePicks, getPlate, assemblePage, defaultTokens } from './atelier.ts'
+import { createInitialAtelier, tokensToCss, tokensToTailwind, tokensToJson, shufflePicks, assemblePage } from './atelier.ts'
+import { curations } from './curations.ts'
+import { storeManifesto, getBookEditorial } from './editorial.ts'
 
 const app = document.getElementById('app')!
 
@@ -14,6 +16,7 @@ type AppState = {
   dictBook: string
   atelier: ReturnType<typeof createInitialAtelier>
   codeTab: 'html' | 'css' | 'props'
+  activeCuration: string | null
 }
 
 let state: AppState = {
@@ -24,10 +27,10 @@ let state: AppState = {
   dictStyle: '',
   dictBook: '',
   atelier: createInitialAtelier(),
-  codeTab: 'html'
+  codeTab: 'html',
+  activeCuration: null
 }
 
-// sync view from hash
 function syncHash(){
   const h = location.hash.replace('#/','').replace('#','') as View
   if (['library','reader','dictionary','atelier'].includes(h)) state.view = h
@@ -41,7 +44,6 @@ function setView(v: View){
   render()
 }
 
-// high-brow cloth map — muted brass / oxblood / forest / stone
 const clothMap: Record<string,string> = {
   'foundations': '#F6F0E8',
   'buttons': '#C9A86A',
@@ -58,10 +60,88 @@ const clothMap: Record<string,string> = {
 }
 function clothOf(b: Book): string { return clothMap[b.id] || b.accent || '#E8E0D5' }
 function isDarkCloth(hex: string): boolean {
-  // simple luminance check for dark cloths that need light text
   const h = hex.replace('#',''); const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), bl=parseInt(h.slice(4,6),16);
   return (r*0.299 + g*0.587 + bl*0.114) < 110;
 }
+
+const provenanceByStyle: Record<string,string> = {
+  'minimal': 'Bauhaus • Japanese joinery • Swiss',
+  'editorial': 'Editorial • Swiss • Garamond',
+  'brutalist': 'Brutalist • Bauhaus • Concrete',
+  'glass': 'Glassmorphism • Swiss • Light',
+  'clay': 'Clay • Japanese • Wabi-sabi',
+  'corporate': 'Corporate • Swiss • Grid',
+  'playful': 'Playful • Memphis • Pop',
+  'retro': 'Retro • Bauhaus • Letterpress',
+  'future': 'Future • Constructivist • Mono',
+  'neumorphic': 'Neumorphic • Soft • Tactile',
+  'moss': 'Moss • Forest • Organic',
+  'terracotta': 'Terracotta • Clay • Earth',
+  'void': 'Void • Ink • Noir',
+}
+function getProvenance(book?: Book, plate?: Plate): string {
+  const s = plate?.style || 'minimal'
+  return provenanceByStyle[s] || `Atelier • ${book?.title || 'Foundations'} • ${s}`
+}
+
+const materialByBook: Record<string, string[]> = {
+  'foundations': ['linen','stone','brass'],
+  'buttons': ['brass','ink','stone'],
+  'forms': ['linen','stone','clay'],
+  'cards': ['oxblood','brass','stone'],
+  'navigation': ['forest','brass','stone'],
+  'data-display': ['stone','brass','ink'],
+  'overlays': ['ink','stone','brass'],
+  'marketing': ['stone','brass','linen'],
+  'layouts': ['stone','linen','brass'],
+  'media': ['forest','stone','clay'],
+  'feedback': ['oxblood','brass','stone'],
+  'commerce': ['ink','brass','stone'],
+}
+function getMaterials(bookId: string): string[] { return materialByBook[bookId] || ['linen','stone','brass'] }
+
+const atelierNotesByStyle: Record<string,string> = {
+  'minimal': 'Cut with generous white space — lets the content breathe.',
+  'editorial': 'Set like a magazine folio — quiet hierarchy, generous margins.',
+  'brutalist': 'Raw edge, honest material — no ornament, pure structure.',
+  'glass': 'Light on linen — translucency as depth, not decoration.',
+  'clay': 'Soft press, tactile — rounded as a river stone.',
+  'corporate': 'Grid-aligned, measured — built for scale.',
+  'playful': 'A touch of joy — precise but not precious.',
+  'retro': 'Letterpress memory — ink on ivory, slightly imperfect.',
+  'future': 'Mono and edge — tomorrow cut today.',
+  'neumorphic': 'Soft shadow, quiet lift — light from the north.',
+  'moss': 'Forest floor, damp earth — organic, not ornamental.',
+  'terracotta': 'Fired clay, warm hand — earth as pigment.',
+  'void': 'Ink field — all type reversed, light as foil.',
+}
+function getAtelierNote(plate?: Plate): string { return atelierNotesByStyle[plate?.style || 'minimal'] || 'Made for the long read — quiet, considered, lasting.' }
+
+const pairMap: Record<string,string[]> = {
+  'foundations': ['buttons','cards','layouts'],
+  'buttons': ['forms','cards','navigation'],
+  'forms': ['buttons','feedback','overlays'],
+  'cards': ['buttons','data-display','media'],
+  'navigation': ['layouts','overlays','buttons'],
+  'data-display': ['cards','feedback','navigation'],
+  'overlays': ['forms','navigation','feedback'],
+  'marketing': ['layouts','media','commerce'],
+  'layouts': ['navigation','cards','marketing'],
+  'media': ['cards','marketing','data-display'],
+  'feedback': ['forms','overlays','data-display'],
+  'commerce': ['marketing','cards','forms'],
+}
+function getCompleteLook(bookId: string): { bookId: string, plate: Plate }[] {
+  const ids = pairMap[bookId] || ['buttons','forms','cards']
+  return ids.slice(0,3).map(id=>{
+    const b = booksById[id]
+    const p = b?.plates?.[0]
+    return p ? { bookId: id, plate: p } : null
+  }).filter(Boolean) as { bookId: string, plate: Plate }[]
+}
+
+const staffPicks = new Set(['buttons','cards','marketing'])
+const newArrivals = new Set(['commerce','media','feedback'])
 
 function render(){
   const totalPlates = dictionary.length
@@ -95,13 +175,85 @@ function render(){
 }
 
 function renderLibrary(){
+  const manifesto = storeManifesto
   return `
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:16px;padding:10px 0 18px;border-bottom:1px solid var(--paper-3);margin-bottom:22px">
+      <div style="font-family:var(--serif-display);font-size:13px;letter-spacing:.02em;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+        <span style="font-weight:400">Bhenre</span>
+        <span style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--stone-2)">Design Store for the Web — Autumn '26</span>
+        <span class="cb-store-badge">No. ${String(dictionary.length).padStart(3,'0')} / 500</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.10em;text-transform:uppercase;color:var(--stone-2);display:flex;gap:16px">
+        <span>Ivory • Brass • Oxblood</span><span>•</span><span>12 Vols • ${dictionary.length} Plates</span>
+      </div>
+    </div>
+
     <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px">
       <div class="cb-brass-plate"><b>Bhenre Collection</b> • Est. 2026 • Rare Book Room • 12 Vols • ${dictionary.length} Plates • Edition I</div>
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2);display:flex;gap:12px;align-items:center">
         <span>⁂ Ex Libris Bhenre</span><span style="width:1px;height:10px;background:var(--paper-3);display:inline-block"></span><span>No. ${String(dictionary.length).padStart(3,'0')} / 500</span>
       </div>
     </div>
+
+    <!-- Manifesto from editorial.ts — world class store -->
+    <div style="display:grid;grid-template-columns:1.15fr .9fr .9fr;gap:28px;margin:0 0 28px;padding:22px 22px 20px;background:#fff;border:1px solid var(--paper-3);border-radius:12px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg, var(--brass-3), var(--brass), var(--brass-2))"></div>
+      <div>
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-3);margin-bottom:10px;font-weight:700">Manifesto — ${manifesto.title.split('—')[1] || 'Autumn 26'}</div>
+        <div style="font-family:var(--serif-display);font-size:19px;line-height:1.15;letter-spacing:-.01em;margin-bottom:10px;color:var(--ink)">A store, not a gallery.</div>
+        <div style="font-family:var(--serif);font-size:12.8px;line-height:1.6;color:var(--ink-2)">${manifesto.body}</div>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">${manifesto.principles.slice(0,2).map(p=>`<span class="cb-store-badge">${p.split('—')[0].trim()}</span>`).join('')}</div>
+      </div>
+      <div style="font-family:var(--serif);font-size:12.4px;line-height:1.6;color:var(--ink-2);border-left:1px dashed var(--paper-3);padding-left:20px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2);margin-bottom:8px">Materials • All cloth</div>
+        Twelve cloths, brass foil, ivory paper, walnut shadow. Linen for Forms, brass for Buttons, oxblood for Cards, forest for Navigation. Each volume bound to its use — you can feel it before you read it.
+        <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--ink-2);line-height:1.5">${manifesto.footer}</div>
+      </div>
+      <div style="font-family:var(--serif);font-size:12.4px;line-height:1.6;color:var(--ink-2);border-left:1px dashed var(--paper-3);padding-left:20px">
+        <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2);margin-bottom:8px">Curation • Staff picks</div>
+        Autumn '26 selects Buttons, Cards, Marketing as staff picks — the workhorses. New in: Commerce, Media, Feedback. Everything else is permanent collection, always available, never discounted.
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><span class="cb-store-badge">Staff Pick • Buttons</span><span class="cb-store-badge">Staff Pick • Cards</span><span class="cb-store-badge new">New • Commerce</span></div>
+        <div style="margin-top:12px;display:flex;gap:6px"><button class="cb-btn primary" data-view="atelier" style="font-size:10px">Atelier →</button><button class="cb-btn" data-view="dictionary" style="font-size:10px">Dictionary</button></div>
+      </div>
+    </div>
+
+    <!-- Curations — world class merchandising -->
+    <div style="margin:0 0 32px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-3);font-weight:700">Curated Sets • ${curations.length} Editions</div>
+          <div style="font-family:var(--serif);font-size:11px;font-style:italic;color:var(--stone-2)">Merchandised like Dover Street Market — complete looks, not loose plates</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:var(--stone-2)">Click set → loads Atelier with those picks</div>
+      </div>
+      <div class="cb-curations">
+        ${curations.map(c=>{
+          const accent = c.accent
+          return `
+          <div class="cb-curation" data-curation="${c.id}" style="--c-accent:${accent}">
+            <div class="cb-curation-top" style="background: linear-gradient(90deg, ${accent}, var(--brass), var(--brass-2))"></div>
+            <div class="cb-curation-head">
+              <span class="cb-badge" style="border-color:${accent};color:${accent}">${c.season || 'Set'} • ${c.edition || ''}</span>
+              <span class="cb-badge">${c.plates.length} plates</span>
+            </div>
+            <div class="cb-curation-title">${c.title}</div>
+            <div class="cb-curation-subtitle">${c.subtitle}</div>
+            <div class="cb-curation-desc">${c.description}</div>
+            <div class="cb-curation-plates">
+              ${c.plates.slice(0,5).map(ref=>{
+                const b = booksById[ref.bookId]
+                const pl = b?.plates.find(p=>p.id===ref.plateId)
+                return pl ? `<div class="cb-curation-plate-mini" title="${pl.name}">${pl.html.slice(0,80)}<style>${pl.css.slice(0,400)}</style></div>` : ''
+              }).join('')}
+              ${c.plates.length>5 ? `<div class="cb-curation-more">+${c.plates.length-5}</div>` : ''}
+            </div>
+            <div class="cb-curation-foot"><span>Shop set →</span><span style="color:${accent}">⁂</span></div>
+          </div>
+          `
+        }).join('')}
+      </div>
+    </div>
+
     <div class="cb-hero">
       <div>
         <div class="cb-kicker"><i></i> VOL. I—XII • COMPENDIUM • MMXXVI <em style="margin-left:8px;color:var(--brass-3)">Clothbound • Foil • Letterpress</em></div>
@@ -129,20 +281,26 @@ function renderLibrary(){
         </div>
       </div>
     </div>
+
     <div class="cb-shelf">
       ${books.map(b=>{
         const cloth = clothOf(b);
         const dark = isDarkCloth(cloth);
         const foilClass = dark ? '' : 'foil';
+        const isStaff = staffPicks.has(b.id)
+        const isNew = newArrivals.has(b.id)
+        const editorial = getBookEditorial(b.id)
         return `
         <div class="cb-book" data-book="${b.id}" style="--accent:${cloth}; --cloth:${cloth}">
           <div class="cb-book-top" style="background: linear-gradient(90deg, ${cloth}, var(--brass), var(--brass-2))"></div>
           <div class="cb-spine"><div class="cb-spine-dot"></div><div class="cb-spine-text">VOL. ${String(b.volume).padStart(2,'0')} — ${b.id.toUpperCase()} — BHENRE</div><div class="cb-spine-dot" style="opacity:.6"></div></div>
           <div class="cb-exlibris" title="Ex Libris • Brass foil">⁂</div>
+          ${isStaff ? `<div class="cb-staff-pick">Staff Pick</div>` : isNew ? `<div class="cb-staff-pick new">New • Autumn '26</div>` : ''}
           <div class="cb-book-cover">
             <div class="cb-book-meta"><span>VOL. ${String(b.volume).padStart(2,'0')} • ED. I</span><span>${b.plates.length} plates</span></div>
             <h3 class="cb-book-title ${foilClass}" style="${dark ? `color:#FFFEFB` : ''}">${b.title}</h3>
             <p class="cb-book-desc" style="${dark ? `color:rgba(255,254,251,.72)` : ''}">${b.description}</p>
+            ${editorial ? `<div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:${dark?'rgba(255,254,251,.55)':'var(--stone-2)'};margin-top:6px;line-height:1.4">${editorial.lineage.split('+')[0].trim()} • ${editorial.subtitle.split('—')[1]?.trim() || ''}</div>` : ''}
             <div class="cb-book-preview">
               ${b.plates[0] ? b.plates[0].html.slice(0,220) : '<div style="opacity:.5">Empty</div>'}
               <style>${b.plates[0]?.css || ''}</style>
@@ -152,7 +310,29 @@ function renderLibrary(){
         </div>
       `}).join('')}
     </div>
-    <div class="cb-colophon">
+
+    <!-- Book didactics — world class editorial -->
+    <div style="margin:36px 0 0;padding:22px 22px 18px;background:#fff;border:1px solid var(--paper-3);border-radius:12px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg, var(--brass-3), var(--brass), var(--brass-2))"></div>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-3);font-weight:700;margin-bottom:12px">Volume Didactics • 12 Vols • The Row notes</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px">
+        ${books.map(b=>{
+          const ed = getBookEditorial(b.id)
+          if(!ed) return ''
+          return `
+          <div style="padding:12px 14px;border:1px solid var(--paper-3);border-radius:10px;background:var(--paper-2);display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2)">VOL. ${String(b.volume).padStart(2,'0')} • ${b.id}</span><span class="cb-store-badge">${clothOf(b)}</span></div>
+            <div style="font-family:var(--serif-display);font-size:14px;color:var(--ink)">${ed.title} — ${ed.subtitle.split('—')[1]?.trim() || ''}</div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--brass-3);text-transform:uppercase">${ed.lineage.slice(0,84)}…</div>
+            <div style="font-family:var(--serif);font-size:11.8px;line-height:1.55;color:var(--ink-2)">${ed.body.slice(0,220)}…</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--stone-2);border-top:1px dashed var(--paper-3);padding-top:8px;margin-top:4px">${ed.colophon || ''}</div>
+          </div>
+          `
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="cb-colophon" style="margin-top:22px">
       <div>
         <h5>Colophon</h5>
         <div style="font-family:var(--serif-display);font-size:14px;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em">Bhenre Collection • 12 Volumes • 214 Plates • 2026</div>
@@ -180,6 +360,7 @@ function renderReader(){
   const plate = book.plates.find(p=>p.id===state.readerPlate) || book.plates[0]
   if (!plate) return `<div class="cb-empty">No plates in this volume yet — subagents still writing comprehensive plates.</div>`
   const folioNum = (book.volume*100 + (book.plates.findIndex(p=>p.id===plate.id)+1)).toString().padStart(3,'0')
+  const editorial = getBookEditorial(book.id)
   return `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -188,6 +369,13 @@ function renderReader(){
       </div>
       <div style="display:flex;gap:8px"><button class="cb-btn" id="prev-plate">← Prev</button><button class="cb-btn" id="next-plate">Next →</button></div>
     </div>
+    ${editorial ? `
+    <div style="margin:0 0 16px;padding:12px 14px;background:var(--paper-2);border:1px solid var(--paper-3);border-radius:10px;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--serif);font-size:11.8px;line-height:1.5;color:var(--ink-2)">
+      <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.10em;text-transform:uppercase;color:var(--brass-3)">${editorial.subtitle}</span>
+      <span style="color:var(--stone-2)">•</span>
+      <span style="font-style:italic">${editorial.lineage}</span>
+      <span style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--stone-2)">${editorial.colophon || ''}</span>
+    </div>` : ''}
     <div class="cb-reader">
       <div class="cb-rail">
         <h3>${book.title} — ${book.plates.length} plates • <span style="color:var(--brass-3)">⁂ ${clothOf(book)}</span></h3>
@@ -241,27 +429,68 @@ function renderReader(){
             <span class="cb-badge" style="border-color:var(--brass);color:var(--brass-3)">⁂ ${plate.style}</span>
             <span class="cb-badge">${book.title}</span>
             <span class="cb-badge" style="background:var(--ink);color:var(--ivory);border-color:var(--ink)">${clothOf(book)} cloth</span>
+            <span class="cb-store-badge">Ed. I • No. ${folioNum}</span>
+          </div>
+          <div class="cb-provenance" style="margin-top:10px">
+            <b>Provenance</b><span class="sep"></span><span>${getProvenance(book, plate)}</span>
+          </div>
+          <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--stone-2)">Materials</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${getMaterials(book.id).map(m=>`<span class="cb-material-swatch ${m}" title="${m} — ${book.title} cloth"></span>`).join('')}
+              <span style="font-family:var(--mono);font-size:10px;color:var(--ink-2);margin-left:4px">${getMaterials(book.id).join(' • ')}</span>
+            </div>
           </div>
         </div>
+
+        <div>
+          <h4>Measurements • Spec sheet</h4>
+          <table class="cb-measure">
+            <tr><td>Cut</td><td>${plate.style} • ${book.title} • Vol. ${book.volume}</td></tr>
+            <tr><td>Cloth</td><td>${clothOf(book)} • brass foil • deckled</td></tr>
+            <tr><td>Folio</td><td>${folioNum} • Plate ${(book.plates.findIndex(p=>p.id===plate.id)+1).toString().padStart(2,'0')} / ${book.plates.length}</td></tr>
+            ${(plate.props||[]).slice(0,4).map(p=>`<tr><td>${p}</td><td>— measured to spec • atelier cut</td></tr>`).join('')}
+            ${(!plate.props || plate.props.length===0) ? `<tr><td>Measure</td><td>default • atelier standard • ivory / brass / ink</td></tr>` : ''}
+          </table>
+        </div>
+
         <div>
           <h4>Tokens • Brass rule</h4>
           ${(plate.tokens||[]).map(t=>`<div class="cb-token-row"><span>${t.name}</span><span style="color:var(--brass-3)">${t.value}</span></div>`).join('') || '<div style="font-size:12px;color:var(--ink-2)">No tokens — uses global • ivory / brass / ink</div>'}
         </div>
+
         <div>
-          <h4>Props • Type case</h4>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">${(plate.props||[]).map(p=>`<span class="cb-prop">${p}</span>`).join('') || '<span class="cb-badge">none • default measure</span>'}</div>
+          <h4>Complete the look</h4>
+          <div class="cb-complete-look">
+            ${getCompleteLook(book.id).map(({bookId, plate: p})=>`
+              <div class="cb-complete-look-item" data-open="${bookId}:${p.id}" title="${p.name} — ${bookId}">
+                ${p.html.slice(0,120)}
+                <small>${booksById[bookId]?.title || bookId}</small>
+                <style>${p.css?.slice(0,800) || ''}</style>
+              </div>
+            `).join('')}
+          </div>
+          <div style="font-family:var(--mono);font-size:9.5px;color:var(--stone-2);margin-top:6px;line-height:1.5">Pairs well with — merchandised like a $400 sweater. Click to try on.</div>
         </div>
+
+        <div class="cb-atelier-note">
+          ${getAtelierNote(plate)}
+          <div style="margin-top:8px;font-family:var(--mono);font-style:normal;font-size:9px;color:var(--stone-2);letter-spacing:.08em">Cloth ${clothOf(book)} • ${plate.style} • Folio ${folioNum} • Bhenre Atelier</div>
+        </div>
+
         <div>
           <h4>Use cases • Marginalia</h4>
           <div style="font-size:12px;line-height:1.55;font-family:var(--serif);font-style:italic">${(plate.useCases||[]).join(' • ') || 'general • editorial • atelier'}</div>
         </div>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="cb-btn primary" id="use-in-atelier">Use in Atelier →</button>
           <button class="cb-btn" id="view-dict">Dictionary</button>
         </div>
+
         <div style="margin-top:4px;padding:10px 12px;background:var(--paper-2);border:1px dashed var(--paper-3);border-radius:8px;font-family:var(--mono);font-size:10px;color:var(--ink-2);line-height:1.5">
           <div style="color:var(--brass-3);font-weight:700;letter-spacing:.10em;margin-bottom:4px">EDITION NOTE</div>
-          First Edition • 2026 • Bhenre Collection • No. 001<br/>Cloth ${clothOf(book)} • Brass foil • Folio ${folioNum}<br/>⁂ Ex Libris
+          First Edition • 2026 • Bhenre Collection • No. 001<br/>Cloth ${clothOf(book)} • Brass foil • Folio ${folioNum}<br/>⁂ Ex Libris • ${getProvenance(book, plate)}
         </div>
       </div>
     </div>
@@ -298,17 +527,27 @@ function renderDictionary(){
 function renderAtelier(){
   const st = state.atelier
   const pageHtml = assemblePage(st)
+  const activeCuration = state.activeCuration ? curations.find(c=>c.id===state.activeCuration) : null
   return `
-    <div class="cb-kicker" style="margin-bottom:16px"><i></i> ATELIER • COMPOSE • EXPORT</div>
+    <div class="cb-kicker" style="margin-bottom:16px"><i></i> ATELIER • COMPOSE • EXPORT ${activeCuration ? `• <span style="color:var(--brass-3)">SET: ${activeCuration.title.toUpperCase()}</span>` : ''}</div>
+    ${activeCuration ? `<div style="margin:0 0 14px;padding:10px 14px;border:1px solid var(--brass);border-radius:10px;background:var(--paper-2);font-family:var(--mono);font-size:10px;display:flex;justify-content:space-between;align-items:center"><span><b>${activeCuration.title}</b> • ${activeCuration.plates.length} plates • ${activeCuration.accent} • ${activeCuration.description.slice(0,90)}…</span><button class="cb-btn" id="clear-curation">Clear set</button></div>` : ''}
     <div class="cb-atelier">
       <div class="cb-atelier-panel">
-        <div style="font-family:var(--serif);font-size:18px">Tokens</div>
+        <div style="font-family:var(--serif);font-size:18px;display:flex;justify-content:space-between;align-items:baseline"><span>Tokens</span><span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">${curations.length} curated sets</span></div>
         ${renderTokenField('Radius','radius','select',['8px','12px','16px','24px','999px'], st.tokens.radius)}
         ${renderTokenField('Shadow','shadow','select',['soft','brutal','layered'], st.tokens.shadow)}
         <div class="cb-field"><label>Accent</label><input type="color" id="token-accent" value="${st.tokens.accent}" /></div>
         <div class="cb-field"><label>Paper</label><input type="color" id="token-paper" value="${st.tokens.paper}" /></div>
         <div class="cb-field"><label>Density</label><select id="token-density"><option value="compact" ${st.tokens.density==='compact'?'selected':''}>Compact</option><option value="cozy" ${st.tokens.density==='cozy'?'selected':''}>Cozy</option><option value="airy" ${st.tokens.density==='airy'?'selected':''}>Airy</option></select></div>
         <div style="display:flex;gap:8px"><button class="cb-btn primary" id="atelier-shuffle">Shuffle</button><button class="cb-btn" id="atelier-reset">Reset</button></div>
+
+        <div style="margin-top:14px">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.10em;text-transform:uppercase;color:var(--brass-3);margin-bottom:8px;font-weight:700">Curated Sets — Quick Load</div>
+          <div style="display:grid;gap:6px">
+            ${curations.map(c=>`<button class="cb-btn" data-load-curation="${c.id}" style="justify-content:space-between;display:flex;width:100%;text-align:left;font-size:11px"><span>${c.title.split('—')[0].trim()}</span><span style="color:${c.accent}">• ${c.plates.length}</span></button>`).join('')}
+          </div>
+        </div>
+
         <div style="margin-top:12px">
           <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Stack (drag order soon — now pick order)</div>
           <div class="cb-stack">
@@ -377,7 +616,6 @@ function attachEvents(){
     if (state.view!=='atelier') setView('atelier'); else render()
   })
 
-  // library
   document.querySelectorAll('[data-book]').forEach(el=>{
     el.addEventListener('click',()=>{
       state.readerBook = (el as HTMLElement).dataset.book!
@@ -386,7 +624,6 @@ function attachEvents(){
     })
   })
 
-  // reader
   document.querySelectorAll('[data-plate]').forEach(el=>{
     el.addEventListener('click',()=>{ state.readerPlate=(el as HTMLElement).dataset.plate!; render() })
   })
@@ -418,7 +655,6 @@ function attachEvents(){
   })
   document.getElementById('view-dict')?.addEventListener('click',()=> setView('dictionary'))
 
-  // dictionary
   document.getElementById('dict-search')?.addEventListener('input',(e)=>{ state.dictQuery=(e.target as HTMLInputElement).value; render() })
   document.getElementById('dict-book')?.addEventListener('change',(e)=>{ state.dictBook=(e.target as HTMLSelectElement).value; render() })
   document.getElementById('dict-style')?.addEventListener('change',(e)=>{ state.dictStyle=(e.target as HTMLSelectElement).value; render() })
@@ -430,14 +666,53 @@ function attachEvents(){
     })
   })
 
-  // atelier
+  // curations
+  document.querySelectorAll('[data-curation]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const cid = (el as HTMLElement).dataset.curation!
+      const cur = curations.find(c=>c.id===cid)
+      if(!cur) return
+      state.activeCuration = cid
+      // load picks into atelier
+      for (const ref of cur.plates){
+        state.atelier.picks[ref.bookId]=ref.plateId
+      }
+      // also set stack order by unique bookIds in curation order
+      const seen = new Set<string>()
+      const ordered: string[] = []
+      for (const r of cur.plates){ if(!seen.has(r.bookId)){ seen.add(r.bookId); ordered.push(r.bookId) } }
+      // keep other stack items after
+      for (const b of state.atelier.stack){ if(!seen.has(b)) ordered.push(b) }
+      state.atelier.stack = ordered
+      state.atelier.tokens.accent = cur.accent
+      setView('atelier')
+    })
+  })
+  document.querySelectorAll('[data-load-curation]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const cid = (el as HTMLElement).dataset.loadCuration!
+      const cur = curations.find(c=>c.id===cid)
+      if(!cur) return
+      state.activeCuration = cid
+      for (const ref of cur.plates) state.atelier.picks[ref.bookId]=ref.plateId
+      const seen = new Set<string>()
+      const ordered: string[] = []
+      for (const r of cur.plates){ if(!seen.has(r.bookId)){ seen.add(r.bookId); ordered.push(r.bookId) } }
+      for (const b of state.atelier.stack){ if(!seen.has(b)) ordered.push(b) }
+      state.atelier.stack = ordered
+      state.atelier.tokens.accent = cur.accent
+      render()
+    })
+  })
+  document.getElementById('clear-curation')?.addEventListener('click',()=>{ state.activeCuration=null; render() })
+
   document.getElementById('token-radius')?.addEventListener('change',(e)=>{ state.atelier.tokens.radius=(e.target as HTMLSelectElement).value; render() })
   document.getElementById('token-shadow')?.addEventListener('change',(e)=>{ state.atelier.tokens.shadow=(e.target as HTMLSelectElement).value; render() })
   document.getElementById('token-accent')?.addEventListener('input',(e)=>{ state.atelier.tokens.accent=(e.target as HTMLInputElement).value; render() })
   document.getElementById('token-paper')?.addEventListener('input',(e)=>{ state.atelier.tokens.paper=(e.target as HTMLInputElement).value; render() })
   document.getElementById('token-density')?.addEventListener('change',(e)=>{ state.atelier.tokens.density=(e.target as HTMLSelectElement).value as any; render() })
   document.getElementById('atelier-shuffle')?.addEventListener('click',()=>{ state.atelier=shufflePicks(state.atelier); render() })
-  document.getElementById('atelier-reset')?.addEventListener('click',()=>{ state.atelier=createInitialAtelier(); render() })
+  document.getElementById('atelier-reset')?.addEventListener('click',()=>{ state.atelier=createInitialAtelier(); state.activeCuration=null; render() })
   document.querySelectorAll('[data-pick]').forEach(el=>{
     el.addEventListener('change',()=>{ const bookId=(el as HTMLElement).dataset.pick||(el as HTMLElement).getAttribute('data-pick')!; state.atelier.picks[bookId]=(el as HTMLSelectElement).value; render() })
   })
@@ -473,7 +748,6 @@ function escapeAttr(s:string){ return s.replace(/"/g,'&quot;').replace(/</g,'&lt
 syncHash()
 render()
 
-// offline-ready hint: cache in localStorage for instant next load
 try{
-  localStorage.setItem('cb-last-build', JSON.stringify({ at: new Date().toISOString(), books: books.length, plates: dictionary.length }))
+  localStorage.setItem('cb-last-build', JSON.stringify({ at: new Date().toISOString(), books: books.length, plates: dictionary.length, curations: curations.length }))
 }catch{}

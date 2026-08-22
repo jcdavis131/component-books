@@ -691,3 +691,303 @@ img{display:block;max-width:100%}
   font-family:var(--serif-display);font-size:28px;color:var(--brass);line-height:1;
 }
 
+/* ---------- store merchandising — SSENSE / Dover St Market / The Row quiet luxury ---------- */
+.cb-store-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:700;
+  padding:4px 9px;border-radius:99px;
+  background: linear-gradient(180deg, #fff, var(--paper-2));
+  border:1px solid var(--brass);
+  color: var(--brass-3);
+  box-shadow: 0 1px 0 #fff inset, 0 1px 4px rgba(201,168,106,.18);
+}
+.cb-store-badge::before{
+  content:"";width:5px;height:5px;border-radius:50%;
+  background: radial-gradient(100% 100% at 35% 35%, var(--brass-2), var(--brass));
+  border:1px solid var(--brass-3);
+}
+.cb-store-badge.new{
+  background: var(--ink);color:var(--ivory);border-color:var(--ink);
+}
+.cb-store-badge.new::before{background:var(--ivory);border-color:var(--ivory)}
+
+.cb-provenance{
+  font-family:var(--mono);
+  font-size:9.8px;letter-spacing:.14em;text-transform:uppercase;
+  color: var(--stone-2);
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  padding:8px 0 10px;
+  border-bottom:1px solid var(--paper-3);
+  line-height:1.6;
+}
+.cb-provenance b{
+  color: var(--ink-2);font-weight:600;letter-spacing:.10em;
+}
+.cb-provenance span.sep{
+  width:12px;height:1px;background:var(--paper-3);display:inline-block;opacity:.9;
+}
+
+.cb-material-swatch{
+  width:14px;height:14px;border-radius:50%;
+  border:1px solid rgba(20,18,16,.14);
+  box-shadow: 0 1px 0 #fff inset, 0 1px 3px rgba(0,0,0,.12);
+  position:relative;display:inline-block;
+}
+.cb-material-swatch::after{
+  content:"";position:absolute;inset:1px;border-radius:50%;
+  background: radial-gradient(90% 90% at 30% 30%, rgba(255,255,255,.7), transparent 55%);
+  pointer-events:none;
+}
+.cb-material-swatch.linen{
+  background:
+    radial-gradient(100% 100% at 30% 30%, #FFFEFB, #E8E0D5),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.04) 0 1px, transparent 1px 2px);
+}
+.cb-material-swatch.clay{
+  background: radial-gradient(120% 120% at 35% 35%, #E8D5A8, #C9A86A);
+}
+.cb-material-swatch.brass{
+  background: radial-gradient(120% 120% at 30% 30%, var(--brass-2), var(--brass) 60%, var(--brass-3));
+}
+.cb-material-swatch.ink{
+  background: radial-gradient(110% 110% at 35% 35%, #2A241E, #141210);
+}
+.cb-material-swatch.oxblood{
+  background: radial-gradient(110% 110% at 35% 35%, #7A3A2F, #4A1C1C);
+}
+.cb-material-swatch.forest{
+  background: radial-gradient(110% 110% at 35% 35%, #2E5A45, #1B3329);
+}
+.cb-material-swatch.stone{
+  background: radial-gradient(110% 110% at 35% 35%, #F6F0E8, #CBBFAD);
+}
+
+.cb-complete-look{
+  display:flex;gap:10px;overflow-x:auto;padding:8px 2px 6px;
+  scrollbar-width:none;
+}
+.cb-complete-look::-webkit-scrollbar{display:none}
+.cb-complete-look-item{
+  min-width:72px;width:72px;height:72px;
+  border-radius:9px;
+  background: var(--paper-2);
+  border:1px solid var(--paper-3);
+  display:grid;place-items:center;
+  padding:8px;
+  position:relative;
+  flex-shrink:0;
+  transition:.18s;
+  cursor:pointer;
+}
+.cb-complete-look-item:hover{
+  border-color:var(--brass);transform:translateY(-1px);box-shadow:0 2px 10px rgba(20,18,16,.08);
+}
+.cb-complete-look-item small{
+  position:absolute;bottom:4px;left:4px;right:4px;
+  font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;
+  text-align:center;color:var(--stone-2);background:rgba(255,254,251,.88);
+  border-radius:4px;padding:2px 3px;backdrop-filter:blur(6px);
+}
+
+.cb-measure{
+  width:100%;border-collapse:collapse;
+  font-family:var(--mono);font-size:11px;
+}
+.cb-measure tr{border-bottom:1px dashed var(--paper-3)}
+.cb-measure tr:last-child{border-bottom:0}
+.cb-measure td{
+  padding:7px 0;vertical-align:top;line-height:1.45;
+}
+.cb-measure td:first-child{
+  color:var(--stone-2);text-transform:uppercase;letter-spacing:.10em;font-size:10px;
+  width:42%;padding-right:10px;
+}
+.cb-measure td:last-child{
+  color:var(--ink-2);font-weight:500;
+}
+
+.cb-staff-pick{
+  position:absolute;top:10px;left:34px;z-index:4;
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:700;
+  background: var(--ink);color:var(--brass-2);
+  border:1px solid var(--ink);
+  padding:4px 8px;border-radius:99px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
+}
+.cb-staff-pick::before{
+  content:"⁂";font-family:var(--serif-display);font-size:10px;color:var(--brass);
+}
+.cb-staff-pick.new{
+  background: #fff;color:var(--ink);border-color:var(--brass);
+}
+
+.cb-atelier-note{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:12.6px;line-height:1.55;
+  color: var(--ink-2);
+  background:
+    radial-gradient(500px 240px at 20% 0%, rgba(201,168,106,.10), transparent 60%),
+    linear-gradient(180deg, #FFFEFB, #F8F2E9);
+  border:1px solid var(--paper-3);
+  border-left:2px solid var(--brass);
+  border-radius:0 9px 9px 0;
+  padding:12px 14px 12px 14px;
+  position:relative;
+}
+.cb-atelier-note::before{
+  content:"— atelier note";display:block;
+  font-family:var(--mono);font-style:normal;
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--brass-3);margin-bottom:6px;font-weight:700;
+}
+
+.cb-lookbook{
+  display:grid;grid-template-columns:repeat(12,1fr);gap:14px;
+  padding:18px;background:var(--paper-2);border:1px solid var(--paper-3);border-radius:12px;
+}
+.cb-lookbook-hero{
+  grid-column: span 8;
+  min-height: 280px;
+  background:#fff;border:1px solid var(--paper-3);border-radius:10px;
+  overflow:hidden;position:relative;
+}
+.cb-lookbook-side{
+  grid-column: span 4;display:flex;flex-direction:column;gap:12px;
+}
+@media(max-width:860px){
+  .cb-lookbook{grid-template-columns:1fr}
+  .cb-lookbook-hero,.cb-lookbook-side{grid-column:1}
+}
+
+.cb-material-card{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:10px 12px;
+  background:#fff;border:1px solid var(--paper-3);border-radius:10px;
+  transition:.18s;
+}
+.cb-material-card:hover{border-color:var(--brass);box-shadow:0 2px 12px rgba(20,18,16,.06)}
+.cb-material-card-meta{
+  font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink-2);
+}
+.cb-material-card-meta b{
+  display:block;font-size:11px;color:var(--ink);letter-spacing:.04em;margin-bottom:2px;
+}
+
+/* ——— Curations — world class merchandising — SSENSE / Dover Street Market ——— */
+.cb-curations{
+  display:grid;
+  grid-template-columns:repeat(12,1fr);
+  gap:14px 14px;
+  align-items:start;
+}
+@media(max-width:1160px){ .cb-curations{grid-template-columns:repeat(6,1fr)} }
+@media(max-width:640px){ .cb-curations{grid-template-columns:1fr} }
+
+.cb-curation{
+  grid-column: span 3;
+  position:relative;
+  background:#fff;
+  border:1px solid var(--paper-3);
+  border-radius:14px;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  min-height: 286px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  cursor:pointer;
+}
+@media(max-width:1160px){ .cb-curation{grid-column:span 3} }
+@media(max-width:640px){ .cb-curation{grid-column:span 1; min-height: 240px} }
+.cb-curation:hover{
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+.cb-curation-top{
+  height:4px;
+  background: linear-gradient(90deg, var(--c-accent, var(--brass)), var(--brass), var(--brass-2));
+}
+.cb-curation-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 12px 0;
+}
+.cb-curation-title{
+  font-family:var(--serif-display);
+  font-size:15px;
+  line-height:1.2;
+  letter-spacing:-.01em;
+  color:var(--ink);
+  padding:8px 12px 2px;
+}
+.cb-curation-subtitle{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  color:var(--stone-2);
+  padding:0 12px 6px;
+}
+.cb-curation-desc{
+  font-family:var(--serif);
+  font-size:11.8px;
+  line-height:1.5;
+  color:var(--ink-2);
+  padding:0 12px 10px;
+  flex:1;
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.cb-curation-plates{
+  display:flex;
+  gap:6px;
+  padding:8px 12px;
+  background:var(--paper-2);
+  border-top:1px dashed var(--paper-3);
+  border-bottom:1px dashed var(--paper-3);
+  overflow:hidden;
+}
+.cb-curation-plate-mini{
+  width:54px;height:36px;
+  background:#fff;
+  border:1px solid var(--paper-3);
+  border-radius:6px;
+  overflow:hidden;
+  display:grid;place-items:center;
+  font-size:9px;
+  opacity:.9;
+}
+.cb-curation-more{
+  width:36px;height:36px;
+  display:grid;place-items:center;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--brass-3);
+  border:1px dashed var(--paper-3);
+  border-radius:6px;
+  background:#fff;
+}
+.cb-curation-foot{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--ink-2);
+}
+.cb-curation-foot span:first-child{
+  color:var(--ink);
+  font-weight:600;
+}
+
+.cb-store-badge.new{
+  background: var(--forest);
+  color:#FFFEFB;
+  border-color: var(--forest);
+}
+

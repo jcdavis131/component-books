@@ -30,6 +30,10 @@ export interface Plate {
   tokens?: PlateToken[]
   useCases?: string[]
   a11y?: string
+  provenance?: string[]
+  material?: string[]
+  era?: '1920s' | '1960s' | '1990s' | '2020s' | 'timeless'
+  mood?: string[]
 }
 
 export interface Book {
