@@ -1,7 +1,7 @@
 import { books, booksById } from './books.ts'
 import type { Plate, Book, DesignTokens } from './types.ts'
 import type { View as OldView } from './types.ts'
-import { searchDict, allStyles, dictionary } from './dictionary.ts'
+import { searchDict, allStyles, dictionary, getPlateLineage } from './dictionary.ts'
 import { createInitialAtelier, tokensToCss, tokensToTailwind, tokensToJson, shufflePicks, assemblePage } from './atelier.ts'
 import { curations } from './curations.ts'
 import { storeManifesto, getBookEditorial } from './editorial.ts'
@@ -10,6 +10,8 @@ import { applicationGuides, getAppGuide } from './applicationGuides.ts'
 import { decisionSteps, getDecisionStep, getNextStep, getPrevStep } from './decisionGuide.ts'
 import { vizPractices, getPractice } from './dataVizBestPractices.ts'
 import { compositeSources, compositeCategories, decisionMappings, vizMappings } from './research/compositeLibrary.ts'
+import { generateDesignCardFromAtelier, designCardToSharePayload, sharePayloadToDesignCard } from './designCards.ts'
+import type { DesignCard } from './designCards.ts'
 
 const app = document.getElementById('app')!
 
@@ -33,6 +35,8 @@ type AppState = {
   dictQuery: string
   dictStyle: string
   dictBook: string
+  dictLimit: number
+  dictRepo: string
   atelier: ReturnType<typeof createInitialAtelier>
   codeTab: 'html' | 'css' | 'props'
   activeCuration: string | null
@@ -42,6 +46,9 @@ type AppState = {
   decisionAnswers: Record<string,string>
   thinkingMode: 'guide' | 'chapter' | 'viz'
   activeViz: string | null
+  activeDesignCard: DesignCard | null
+  showDesignCardModal: boolean
+  isShared: boolean
 }
 
 function loadDecision(): { step: string, answers: Record<string,string> } {
@@ -54,12 +61,67 @@ function loadDecision(): { step: string, answers: Record<string,string> } {
 
 let _d = loadDecision()
 
+function encodeState(atelier: ReturnType<typeof createInitialAtelier>): string {
+  try {
+    const payload = { t: atelier.tokens, p: atelier.picks, s: atelier.stack }
+    return btoa(encodeURIComponent(JSON.stringify(payload)))
+  } catch { return '' }
+}
+export function encodeAtelier(at: ReturnType<typeof createInitialAtelier>): string { return encodeState(at) }
+export function decodeAtelier(str: string): Partial<ReturnType<typeof createInitialAtelier>> | null {
+  try {
+    const json = decodeURIComponent(atob(decodeURIComponent(str)))
+    const obj = JSON.parse(json)
+    if (!obj || !obj.t) return null
+    return { tokens: obj.t, picks: obj.p, stack: obj.s } as any
+  } catch { return null }
+}
+
+function decodeStateFromUrl(): Partial<ReturnType<typeof createInitialAtelier>> | null {
+  try {
+    const hash = location.hash
+    const search = location.search
+    // short form #/s/BASE64
+    const shortMatch = hash.match(/#\/s\/([^?&#]+)/) || hash.match(/#s\/([^?&#]+)/)
+    if (shortMatch) {
+      const decoded = decodeAtelier(shortMatch[1])
+      if (decoded) return decoded
+    }
+    const combined = hash + '&' + search
+    const match = combined.match(/[?&#]s=([^&]+)/) || combined.match(/[?&#]share=([^&]+)/)
+    if (!match) return null
+    const b64 = decodeURIComponent(match[1])
+    const json = decodeURIComponent(atob(b64))
+    const obj = JSON.parse(json)
+    if (!obj || !obj.t) return null
+    return { tokens: obj.t, picks: obj.p, stack: obj.s, name: obj.n } as any
+  } catch { return null }
+}
+
+function loadAtelierFromStorage(): Partial<ReturnType<typeof createInitialAtelier>> | null {
+  try {
+    const raw = localStorage.getItem('cb-atelier')
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    if (!obj || !obj.tokens) return null
+    return obj as any
+  } catch { return null }
+}
+function saveAtelierToStorage(at: ReturnType<typeof createInitialAtelier>){
+  try { localStorage.setItem('cb-atelier', JSON.stringify({ tokens: at.tokens, picks: at.picks, stack: at.stack })) } catch {}
+}
+
 function parseView(): View {
-  const raw = location.hash.replace('#/','').replace('#','').split('?')[0].trim()
-  if (!raw) return 'guide'
-  if (LEGACY_MAP[raw]) return LEGACY_MAP[raw]
+  const hashPart = location.hash.replace('#/','').replace('#','').split('?')[0].split('&')[0].trim()
+  if (!hashPart) return 'guide'
+  if (LEGACY_MAP[hashPart]) return LEGACY_MAP[hashPart]
+  // also handle #/studio?s=...
+  if (hashPart.startsWith('studio') || hashPart.startsWith('catalogue') || hashPart.startsWith('guide')) return hashPart as View
   return 'guide'
 }
+
+let sharedDecoded = decodeStateFromUrl()
+let storageDecoded = !sharedDecoded ? loadAtelierFromStorage() : null
 
 let state: AppState = {
   view: parseView(),
@@ -68,7 +130,20 @@ let state: AppState = {
   dictQuery: '',
   dictStyle: '',
   dictBook: '',
-  atelier: createInitialAtelier(),
+  dictLimit: 120,
+  dictRepo: '',
+  atelier: (() => {
+    const base = createInitialAtelier()
+    const src = sharedDecoded || storageDecoded
+    if (src && (src as any).tokens) {
+      return {
+        tokens: { ...base.tokens, ...(src as any).tokens },
+        picks: { ...base.picks, ...((src as any).picks||{}) },
+        stack: (src as any).stack && (src as any).stack.length ? (src as any).stack : base.stack
+      }
+    }
+    return base
+  })(),
   codeTab: 'html',
   activeCuration: null,
   activeThinking: null,
@@ -76,7 +151,10 @@ let state: AppState = {
   activeDecisionStep: _d.step,
   decisionAnswers: _d.answers,
   thinkingMode: 'guide',
-  activeViz: null
+  activeViz: null,
+  activeDesignCard: null,
+  showDesignCardModal: false,
+  isShared: !!sharedDecoded
 }
 
 function saveDecision(){
@@ -84,16 +162,27 @@ function saveDecision(){
 }
 
 function syncHash(){
-  const raw = location.hash.replace('#/','').replace('#','').split('?')[0]
+  const raw = location.hash.replace('#/','').replace('#','').split('?')[0].split('&')[0]
   const mapped = LEGACY_MAP[raw]
   if (mapped) state.view = mapped
   else if (!raw) state.view = 'guide'
+  // re-check share param on hash change
+  const decoded = decodeStateFromUrl()
+  if (decoded && decoded.tokens && !state.isShared) {
+    state.atelier.tokens = { ...state.atelier.tokens, ...decoded.tokens } as any
+    state.atelier.picks = { ...state.atelier.picks, ...(decoded as any).picks }
+    if ((decoded as any).stack?.length) state.atelier.stack = (decoded as any).stack
+    state.isShared = true
+  }
 }
 window.addEventListener('hashchange', ()=>{ syncHash(); render() })
 
 function setView(v: View){
   state.view = v
-  location.hash = `#/${v}`
+  // preserve share param if present
+  const shareMatch = location.hash.match(/([?&#](s|share)=[^&]+)/)
+  const shareSuffix = shareMatch ? `?${shareMatch[1].replace(/^[?&#]/,'')}` : ''
+  location.hash = `#/${v}${shareSuffix}`
   render()
 }
 
@@ -197,6 +286,98 @@ function getCompleteLook(bookId: string): { bookId: string, plate: Plate }[] {
 const staffPicks = new Set(['buttons','cards','marketing'])
 const newArrivals = new Set(['commerce','media','feedback'])
 
+function renderDesignCardModal(card: DesignCard): string {
+  const picksEntries = Object.entries(card.picks).slice(0, 12)
+  const plates = picksEntries.map(([bookId, plateId]) => {
+    const b = booksById[bookId]
+    const p = b?.plates.find(pp => pp.id === plateId) || b?.plates[0]
+    return p ? { bookId, book: b, plate: p } : null
+  }).filter(Boolean) as { bookId: string, book: Book, plate: Plate }[]
+
+  const tokenRows = [
+    { name: '--paper', value: card.tokens.paper, usage: 'Page background, card surfaces' },
+    { name: '--ink', value: card.tokens.ink, usage: 'Text, borders, primary actions' },
+    { name: '--accent', value: card.tokens.accent, usage: 'Brass, CTAs, links' },
+    { name: '--radius', value: card.tokens.radius, usage: 'Corner radius' },
+    { name: '--shadow', value: card.tokens.shadow, usage: 'Elevation style' },
+    { name: '--density', value: card.tokens.density, usage: 'Spacing density' },
+  ]
+
+  return `
+  <div class="cb-modal-backdrop" id="cb-modal-backdrop" style="position:fixed;inset:0;z-index:100;background:rgba(20,18,16,.48);backdrop-filter:blur(8px);display:grid;place-items:center;padding:16px">
+    <div class="cb-modal" style="width:min(90vw,1020px);max-height:90vh;overflow:auto;background:#FFFEFB;border:1px solid #E8E0D5;border-radius:16px;box-shadow:0 24px 64px rgba(20,18,16,.22),0 1px 0 #fff inset;position:relative">
+      <div style="height:4px;background:linear-gradient(90deg,#C9A86A,#E8D5A8,#8A6B3E);border-radius:16px 16px 0 0"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;opacity:.35;background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(201,168,106,.14), transparent),
+        radial-gradient(800px 400px at 90% 0%, rgba(232,213,168,.22), transparent),
+        repeating-linear-gradient(90deg, rgba(0,0,0,.012) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(0deg, rgba(0,0,0,.012) 0 1px, transparent 1px 24px)"></div>
+      <div style="position:relative;padding:20px 22px 0;display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="cb-kicker"><i></i> DESIGN CARD • ${card.edition || 'Autumn ’26'} • ${card.author.toUpperCase()} • ${new Date(card.createdAt).toLocaleDateString()}</div>
+          <h2 style="font-family:var(--serif-display);font-size:26px;line-height:1.05;margin:6px 0 6px;letter-spacing:-.015em">${card.name}</h2>
+          <div style="font-family:var(--serif);font-size:13.5px;color:var(--ink-2);line-height:1.5;max-width:62ch">${card.description}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <span class="cb-badge" style="background:${card.tokens.accent};color:#fff;border-color:${card.tokens.accent}">${card.tokens.accent}</span>
+            <span class="cb-badge">${card.tokens.radius} radius</span>
+            <span class="cb-badge">${card.tokens.shadow} shadow</span>
+            <span class="cb-badge">${card.tokens.density}</span>
+            <span class="cb-badge">${card.stack.length} sections</span>
+            <span class="cb-badge">${Object.keys(card.picks).length} picks</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="cb-btn" id="cb-modal-close">✕ Close</button>
+        </div>
+      </div>
+
+      <div style="position:relative;padding:16px 22px;display:grid;grid-template-columns:1fr 320px;gap:18px" class="cb-modal-body">
+        <div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            ${[
+              {k:'paper',v:card.tokens.paper},
+              {k:'ink',v:card.tokens.ink},
+              {k:'accent',v:card.tokens.accent}
+            ].map(s=>`<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--paper-3);border-radius:999px;padding:4px 10px"><span style="width:14px;height:14px;border-radius:50%;background:${s.v};border:1px solid var(--paper-3)"></span><span style="font-family:var(--mono);font-size:11px">${s.k}: ${s.v}</span></div>`).join('')}
+          </div>
+          <div class="cb-card-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">
+            ${plates.map(({book, plate})=>`
+              <div style="background:#fff;border:1px solid var(--paper-3);border-radius:12px;overflow:hidden">
+                <div style="padding:8px 10px;background:var(--paper-2);border-bottom:1px solid var(--paper-3);display:flex;justify-content:space-between;align-items:center">
+                  <span class="cb-badge" style="font-size:9px">${book.title}</span><span class="cb-badge" style="font-size:9px">${plate.style}</span>
+                </div>
+                <div style="padding:12px;min-height:84px;display:grid;place-items:center">${plate.html}<style>${plate.css}</style></div>
+                <div style="padding:8px 10px;border-top:1px solid var(--paper-3);font-family:var(--mono);font-size:10px;color:var(--stone-2)">${plate.name}</div>
+              </div>
+            `).join('')}
+          </div>
+          ${plates.length===0?`<div class="cb-empty">⁂ No plates — compose in Studio</div>`:''}
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="background:#fff;border:1px solid var(--paper-3);border-radius:12px;padding:12px">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.10em;text-transform:uppercase;color:var(--brass-3);margin-bottom:8px;font-weight:700">Tokens</div>
+            <div style="display:grid;gap:6px">
+              ${tokenRows.map(r=>`<div style="display:flex;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;padding:6px 8px;background:var(--paper-2);border-radius:8px"><span style="color:var(--stone-2)">${r.name}</span><span style="font-weight:600">${r.value}</span></div><div style="font-family:var(--serif);font-size:11px;color:var(--ink-2);margin:-2px 0 4px 8px">${r.usage}</div>`).join('')}
+            </div>
+          </div>
+          <div style="background:var(--paper-2);border:1px dashed var(--paper-3);border-radius:12px;padding:12px">
+            <div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2);margin-bottom:8px">Actions</div>
+            <div style="display:grid;gap:8px">
+              <button class="cb-btn primary" id="cb-modal-copy-html" style="width:100%">Copy HTML (page)</button>
+              <button class="cb-btn" id="cb-modal-copy-css" style="width:100%">Copy CSS vars</button>
+              <button class="cb-btn" id="cb-modal-share" style="width:100%">Copy Share Link</button>
+              <button class="cb-btn" id="cb-modal-close-2" style="width:100%">Close</button>
+            </div>
+            <div style="margin-top:10px;font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-2);line-height:1.4">Tokens travel. Every plate here uses these three. If it does not travel, it does not stay. ⁂ Brass & oxblood & forest — quiet luxury.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  `
+}
+
 function render(){
   const totalPlates = dictionary.length
   app.innerHTML = `
@@ -211,6 +392,7 @@ function render(){
       </div>
       <div class="cb-nav-right">
         <span class="cb-count">${state.view==='guide'?'Start → Browse → Build': state.view==='catalogue'?'214 plates • 12 vols':'Compose • Export'}</span>
+        ${state.isShared?`<span class="cb-badge" style="background:var(--forest);color:#fff;border-color:var(--forest)">Shared system</span>`:''}
         <button class="cb-btn" id="shuffle-global" title="Compose new">↻ Compose</button>
       </div>
     </nav>
@@ -219,10 +401,8 @@ function render(){
       ${state.view==='catalogue' ? renderCatalogue() : ''}
       ${state.view==='studio' ? renderStudio() : ''}
     </main>
-    <footer style="padding:32px 24px;text-align:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--stone-2);border-top:1px solid var(--paper-3);max-width:1320px;margin:0 auto;width:100%;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center">
-      <span style="display:flex;align-items:center;gap:10px"><span style="width:20px;height:1px;background:var(--brass);display:inline-block"></span> Bhenre Collection • Est. 2026 • Guide → Catalogue → Studio</span>
-      <span style="font-family:var(--serif);font-style:italic;text-transform:none;letter-spacing:0;color:var(--ink-2)">Set in Iowan Old Style / Palatino • Brass & oxblood & forest • 12 vols • Thinking as product</span>
-    </footer>
+    ${state.activeDesignCard ? renderDesignCardModal(state.activeDesignCard) : ''}
+    <footer class="cb-footer"><span>Bhenre • Est. 2026 • Rare Book Room • No. 001/500</span><span><a href="https://github.com/jcdavis131/component-books" target="_blank" rel="noopener">GitHub</a> • bhenre.com • 12 vols • 214 plates</span></footer>
   `
   attachEvents()
 }
@@ -381,7 +561,7 @@ function renderGuide(){
           <div class="cb-curation-subtitle">${c.subtitle}</div>
           <div class="cb-curation-desc">${c.description}</div>
           <div class="cb-curation-plates">${plates.map(p=>`<div class="cb-curation-plate-mini">${p.html.slice(0,60)}<style>${p.css.slice(0,250)}</style></div>`).join('')}${c.plates.length>4?`<div class="cb-curation-more">+${c.plates.length-4}</div>`:''}</div>
-          <div class="cb-curation-foot"><span>${c.edition||c.season}</span><span style="color:${c.accent}">→ Studio</span></div>
+          <div class="cb-curation-foot" style="display:flex;justify-content:space-between;align-items:center"><span>${c.edition||c.season}</span><span style="display:flex;gap:6px"><button class="cb-btn" data-view-card="${c.id}" style="font-size:9px;padding:2px 8px">View Card</button><span style="color:${c.accent}">→ Studio</span></span></div>
         </div>`
       }).join('')}
     </div>
@@ -410,12 +590,13 @@ function renderGuide(){
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:28px">
       ${applicationGuides.slice(0,3).map(g=>`
-        <div class="cb-guide-card" data-guide="${g.id}" style="background:linear-gradient(180deg,#fff,var(--paper-2));border:1px solid var(--paper-3);border-radius:12px;padding:14px;cursor:pointer;box-shadow:var(--shadow-sm)">
+        <div class="cb-guide-card" style="background:linear-gradient(180deg,#fff,var(--paper-2));border:1px solid var(--paper-3);border-radius:12px;padding:14px;box-shadow:var(--shadow-sm)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span class="cb-badge" style="background:var(--forest);color:#fff;border-color:var(--forest)">Guide • ${g.stack.length}</span><span class="cb-badge">${g.title.split('—')[0].trim().slice(0,10)}</span></div>
-          <div style="font-family:var(--serif-display);font-size:15px;margin-bottom:4px">${g.title}</div>
+          <div style="font-family:var(--serif-display);font-size:15px;margin-bottom:4px;cursor:pointer" data-guide="${g.id}">${g.title}</div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--brass-3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">${g.subtitle}</div>
           <div style="font-family:var(--serif);font-size:12.5px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${g.description.slice(0,120)}…</div>
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${g.stack.slice(0,3).map(s=>`<span class="cb-badge" style="font-size:9px">${booksById[s.bookId]?.title||s.bookId}</span>`).join('')}${g.stack.length>3?`<span class="cb-badge" style="font-size:9px">+${g.stack.length-3}</span>`:''}</div>
+          <div style="margin-top:10px;display:flex;gap:6px"><button class="cb-btn primary" data-guide="${g.id}" style="flex:1;font-size:10px">Load → Studio</button><button class="cb-btn" data-view-guide-card="${g.id}" style="flex:1;font-size:10px">View Card</button></div>
         </div>
       `).join('')}
     </div>
@@ -428,11 +609,11 @@ function renderGuide(){
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px">
         ${compositeSources.slice(0,8).map(s=>`
-          <div style="background:#fff;border:1px solid var(--paper-3);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px">
+          <div data-filter-repo="${s.id}" style="background:#fff;border:1px solid var(--paper-3);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;transition:border-color .15s" title="Click to filter Catalogue by ${s.id}">
             <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-3)">${s.id}</span><span style="font-family:var(--mono);font-size:10px;color:var(--stone-2)">★ ${s.stars.toLocaleString()}</span></div>
             <div style="font-family:var(--serif-display);font-size:14px">${s.repo}</div>
             <div style="font-family:var(--serif);font-size:12px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${s.description.slice(0,140)}…</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${s.patterns.slice(0,3).map(p=>`<span class="cb-badge" style="font-size:9px">${p}</span>`).join('')}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${s.patterns.slice(0,3).map(p=>`<span class="cb-badge" style="font-size:9px">${p}</span>`).join('')}<span class="cb-badge" style="font-size:9px;background:var(--brass);color:#fff;border-color:var(--brass)">Filter →</span></div>
           </div>
         `).join('')}
       </div>
@@ -556,13 +737,21 @@ function renderGuide(){
   `
 }
 
-// ---------- CATALOGUE (enriched) ----------
+// ---------- helpers for lineage ----------
+function getRepoLineage(bookId: string, plateId: string): string[] {
+  return getPlateLineage(bookId, plateId, compositeCategories)
+}
+
+// ---------- CATALOGUE (enriched + dict proper + lineage) ----------
 function renderCatalogue(){
-  const results = searchDict(state.dictQuery, { style: state.dictStyle || undefined, bookId: state.dictBook || undefined })
+  const results = searchDict(state.dictQuery, { style: state.dictStyle || undefined, bookId: state.dictBook || undefined, repo: state.dictRepo || undefined })
+  // if repo filter active, further filter via lineage
+  const filteredResults = state.dictRepo ? results.filter(e => getPlateLineage(e.bookId, e.plate.id, compositeCategories).includes(state.dictRepo)) : results
   const activeBook = booksById[state.catalogueBook] || books[0]
   const activePlate = state.cataloguePlate ? activeBook.plates.find(p=>p.id===state.cataloguePlate) || activeBook.plates[0] : activeBook.plates[0]
   const total = dictionary.length
   const stylesCount = allStyles().length
+  const visible = filteredResults.slice(0, state.dictLimit)
 
   return `
     <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:16px;padding:10px 0 16px;border-bottom:1px solid var(--paper-3);margin-bottom:18px">
@@ -575,17 +764,16 @@ function renderCatalogue(){
       <div>
         <div class="cb-kicker"><i></i> SHELF • VOLUMES • No. 001 / 500 • Bhenre Collection</div>
         <h2 style="font-family:var(--serif-display);font-size:22px;line-height:1.1;margin:6px 0 8px">12 volumes, ${total} plates — each cut and sewn by hand in code</h2>
-        <p style="font-family:var(--serif);font-size:13.5px;color:var(--ink-2);line-height:1.55;max-width:56ch">Every plate here is real HTML and scoped CSS, zero dependencies, verified in a real browser. No lorem, no mock. Click any volume to read. Guide to decide. Studio to compose.</p>
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="cb-btn primary" data-view="guide">Guide →</button><button class="cb-btn" data-view="studio">Studio →</button><span class="cb-badge">${thinkingChapters.length} ch • ${applicationGuides.length} guides • ${curations.length} sets</span></div>
+        <p style="font-family:var(--serif);font-size:13.5px;color:var(--ink-2);line-height:1.55;max-width:56ch">Every plate here is real HTML and scoped CSS, zero dependencies, verified in a real browser. No lorem, no mock. Click any volume to read. Guide to decide. Studio to compose. Search checks name, description, style, props, tokens, useCases, lineage.</p>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="cb-btn primary" data-view="guide">Guide →</button><button class="cb-btn" data-view="studio">Studio →</button><span class="cb-badge">${thinkingChapters.length} ch • ${applicationGuides.length} guides • ${curations.length} sets • ${compositeSources.length} repos</span>${state.dictRepo ? `<span class="cb-badge" style="background:var(--brass);color:#fff;border-color:var(--brass)">Repo: ${state.dictRepo} ✕</span>` : ''}</div>
       </div>
       <div class="cb-shelf-meta" style="align-self:start">
         <div class="row"><span>Volumes</span><span>12 clothbound</span></div>
         <div class="row"><span>Plates</span><span>${total} • real HTML+CSS</span></div>
         <div class="row"><span>Styles</span><span>${stylesCount} • minimal→void</span></div>
-        <div class="row"><span>Chapters</span><span>${thinkingChapters.length} • thinking as product</span></div>
-        <div class="row"><span>Guides</span><span>${applicationGuides.length} • stack + tokens</span></div>
-        <div class="row"><span>Sets</span><span>${curations.length} curated</span></div>
-        <div class="foot">Click any volume to read. Guide to decide. Studio to compose. ⁂ Set in Iowan Old Style / Palatino • Brass & oxblood & forest • 12 vols • Letterpress-grade.</div>
+        <div class="row"><span>Lineage</span><span>${compositeSources.length} great repos • ${compositeCategories.length} cats</span></div>
+        <div class="row"><span>Showing</span><span>${visible.length} / ${filteredResults.length}${state.dictQuery || state.dictBook || state.dictStyle || state.dictRepo ? ` (filtered from ${total})` : ''}</span></div>
+        <div class="foot">Click any volume to read. Guide to decide. Studio to compose. ⁂ Search checks props, tokens, useCases, lineage. Keyboard: ←/→ or j/k to move plates in reader.</div>
       </div>
     </div>
 
@@ -616,20 +804,23 @@ function renderCatalogue(){
 
     <!-- Search + Filters -->
     <div class="cb-dict-head" style="margin-bottom:14px">
-      <div class="cb-search"><span style="opacity:.5">⌕</span><input id="dict-search" placeholder="Search ${total} plates — 'glass modal', 'brutalist button'" value="${escapeAttr(state.dictQuery)}" /><span class="cb-badge">${results.length}</span></div>
+      <div class="cb-search"><span style="opacity:.5">⌕</span><input id="dict-search" placeholder="Search ${total} plates — 'glass modal', 'brutalist button', props, tokens, useCases, lineage" value="${escapeAttr(state.dictQuery)}" /><span class="cb-badge">${filteredResults.length}</span></div>
       <div class="cb-filters">
         <select class="cb-filter" id="dict-book"><option value="">All books</option>${books.map(b=>`<option value="${b.id}" ${state.dictBook===b.id?'selected':''}>${b.title}</option>`).join('')}</select>
         <select class="cb-filter" id="dict-style"><option value="">All styles</option>${allStyles().map(s=>`<option value="${s}" ${state.dictStyle===s?'selected':''}>${s}</option>`).join('')}</select>
+        <select class="cb-filter" id="dict-repo"><option value="">All repos</option>${compositeSources.map(src=>`<option value="${src.id}" ${state.dictRepo===src.id?'selected':''}>${src.id} ★${(src.stars/1000).toFixed(0)}k</option>`).join('')}</select>
         <button class="cb-btn" id="dict-clear">Clear</button>
       </div>
     </div>
 
     <!-- Inline Reader -->
-    ${activePlate ? `
-    <div class="cb-reader" style="margin-bottom:18px;border:1px solid var(--paper-3);border-radius:12px;overflow:hidden;background:#fff">
+    ${activePlate ? (() => {
+      const lineage = getRepoLineage(activeBook.id, activePlate.id)
+      return `
+    <div class="cb-reader" id="cb-reader" tabindex="0" style="margin-bottom:18px;border:1px solid var(--paper-3);border-radius:12px;overflow:hidden;background:#fff;outline:none">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--paper-2);border-bottom:1px solid var(--paper-3);flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="cb-badge" style="background:var(--ink);color:#fff">${activeBook.title}</span><span style="font-family:var(--serif-display);font-size:15px">${activePlate.name}</span><span class="cb-badge">${activePlate.style}</span>${getCompleteLook(activeBook.id).length?`<span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">Complete: ${getCompleteLook(activeBook.id).map(l=>l.plate.name.split(' ')[0]).join(' + ')}</span>`:''}</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="cb-btn" data-copy="html">Copy HTML</button><button class="cb-btn" data-copy="css">Copy CSS</button><button class="cb-btn primary" id="use-in-atelier">Studio →</button><button class="cb-btn" id="close-reader">✕</button></div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="cb-badge" style="background:var(--ink);color:#fff">${activeBook.title}</span><span style="font-family:var(--serif-display);font-size:15px">${activePlate.name}</span><span class="cb-badge">${activePlate.style}</span>${lineage.length ? `<span style="font-family:var(--mono);font-size:9px;color:var(--brass-3);display:flex;gap:4px;align-items:center">From: ${lineage.slice(0,3).map(r=>`<span class="cb-badge" style="font-size:9px;background:var(--paper);border-color:var(--brass-2)">${r}</span>`).join('')}</span>` : ''}${getCompleteLook(activeBook.id).length?`<span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">Complete: ${getCompleteLook(activeBook.id).map(l=>l.plate.name.split(' ')[0]).join(' + ')}</span>`:''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span style="font-family:var(--mono);font-size:10px;color:var(--stone-2);align-self:center">←/→ j/k</span><button class="cb-btn" data-copy="html">Copy HTML</button><button class="cb-btn" data-copy="css">Copy CSS</button><button class="cb-btn primary" id="use-in-atelier">Studio →</button><button class="cb-btn" id="close-reader">✕</button></div>
       </div>
       <div style="display:grid;grid-template-columns:220px 1fr 280px;gap:0;min-height:360px" class="cb-reader-grid">
         <div style="border-right:1px solid var(--paper-3);padding:10px;overflow:auto;max-height:460px">
@@ -640,33 +831,41 @@ function renderCatalogue(){
           <div class="cb-folio" style="margin-bottom:12px"><span><b>Bhenre</b> • ${activeBook.title}</span><span>Folio ${(activeBook.volume*100+activeBook.plates.findIndex(pp=>pp.id===activePlate.id)+1).toString().padStart(3,'0')}</span></div>
           <div style="min-height:96px;display:grid;place-items:center">${activePlate.html}<style>${activePlate.css}</style></div>
           <div class="cb-code" style="margin-top:14px"><div class="cb-code-tabs"><button class="cb-code-tab ${state.codeTab==='html'?'active':''}" data-code="html">HTML</button><button class="cb-code-tab ${state.codeTab==='css'?'active':''}" data-code="css">CSS</button><button class="cb-code-tab ${state.codeTab==='props'?'active':''}" data-code="props">PROPS</button></div><div id="code-view" style="font-size:11px;max-height:160px;overflow:auto">${state.codeTab==='html'?escapeHtml(activePlate.html):state.codeTab==='css'?escapeHtml(activePlate.css):escapeHtml((activePlate.props||[]).join('\n'))}</div></div>
-          ${activePlate.tokens?.length?`<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">${activePlate.tokens.map(t=>`<span class="cb-prop" title="${t.usage}">${t.name}: ${t.value}</span>`).join('')}</div>`:''}
+          ${activePlate.props?.length ? `<div style="margin-top:12px"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2);margin-bottom:6px">Props • ${activePlate.props.length}</div><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px"><thead><tr style="text-align:left;border-bottom:1px solid var(--paper-3)"><th style="padding:4px 6px;font-weight:600">Prop</th><th style="padding:4px 6px;font-weight:600">Type / Notes</th></tr></thead><tbody>${activePlate.props.map(pr=>{const [k,...rest]=pr.split(':');return `<tr style="border-bottom:1px dashed var(--paper-3)"><td style="padding:4px 6px;font-weight:600">${k.trim()}</td><td style="padding:4px 6px;color:var(--ink-2)">${rest.join(':').trim() || '—'}</td></tr>`}).join('')}</tbody></table></div>` : ''}
+          ${activePlate.tokens?.length ? `<div style="margin-top:12px"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2);margin-bottom:6px">Tokens • ${activePlate.tokens.length}</div><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px"><thead><tr style="text-align:left;border-bottom:1px solid var(--paper-3)"><th style="padding:4px 6px">Token</th><th style="padding:4px 6px">Value</th><th style="padding:4px 6px">Usage</th></tr></thead><tbody>${activePlate.tokens.map(t=>`<tr style="border-bottom:1px dashed var(--paper-3)"><td style="padding:4px 6px;font-weight:600">${t.name}</td><td style="padding:4px 6px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${t.value};border:1px solid var(--paper-3);vertical-align:middle;margin-right:4px"></span>${t.value}</td><td style="padding:4px 6px;color:var(--ink-2)">${t.usage}</td></tr>`).join('')}</tbody></table></div>` : `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">${activePlate.tokens?.map(t=>`<span class="cb-prop" title="${t.usage}">${t.name}: ${t.value}</span>`).join('')||''}</div>`}
+          ${activePlate.useCases?.length ? `<div style="margin-top:12px"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2);margin-bottom:6px">Use Cases</div><ul style="margin:0;padding-left:18px;font-family:var(--serif);font-size:12.5px;line-height:1.5;color:var(--ink-2)">${activePlate.useCases.map(uc=>`<li>${uc}</li>`).join('')}</ul></div>` : ''}
         </div>
         <div style="border-left:1px solid var(--paper-3);padding:12px;background:var(--paper-2);display:flex;flex-direction:column;gap:12px">
           <div><div style="font-family:var(--serif-display);font-size:14px">${activePlate.name}</div><div style="font-family:var(--serif);font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5">${activePlate.description}</div></div>
+          ${lineage.length ? `<div><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2)">Lineage — From great repos</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${lineage.map(r=>`<button class="cb-badge" data-filter-repo="${r}" style="font-size:10px;background:#fff;border-color:var(--brass);cursor:pointer">${r}</button>`).join('')}</div><div style="font-family:var(--mono);font-size:9px;color:var(--stone-2);margin-top:4px">Click to filter catalogue • ${lineage.length} sources</div></div>` : ''}
           <div><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2)">Provenance</div><div style="font-family:var(--mono);font-size:11px;line-height:1.4">${getProvenance(activeBook, activePlate)}</div></div>
           <div><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2)">Materials</div><div style="display:flex;gap:6px;margin-top:4px;align-items:center">${getMaterials(activeBook.id).map(m=>`<span class="cb-material-swatch ${m}" title="${m}"></span>`).join('')}<span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">${getMaterials(activeBook.id).join(' • ')}</span></div></div>
           <div class="cb-atelier-note">${getAtelierNote(activePlate)}</div>
           ${getCompleteLook(activeBook.id).length?`<div><div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--stone-2);margin-bottom:6px">Complete the look</div><div class="cb-complete-look">${getCompleteLook(activeBook.id).map(l=>`<div class="cb-complete-look-item" data-open="${l.bookId}:${l.plate.id}" title="${l.plate.name}"><div style="font-size:10px">${l.plate.html.slice(0,50)}</div><small>${l.plate.name.split(' ')[0]}</small><style>${l.plate.css.slice(0,200)}</style></div>`).join('')}</div></div>`:''}
         </div>
       </div>
-    </div>` : ''}
+    </div>`
+    })() : ''}
 
     <!-- Plate grid -->
     <div class="cb-grid">
-      ${results.slice(0,120).map(e=>`
+      ${visible.map(e=> {
+        const lineage = getRepoLineage(e.bookId, e.plate.id)
+        return `
         <div class="cb-plate-card" data-open="${e.bookId}:${e.plate.id}" style="${state.cataloguePlate===e.plate.id && e.bookId===state.catalogueBook?'outline:2px solid var(--brass)':''}">
           <div class="cb-plate-card-preview" style="min-height:132px">${e.plate.html}<style>${e.plate.css}</style></div>
           <div class="cb-plate-card-body">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px"><span class="cb-badge">${e.bookTitle}</span><span class="cb-badge">${e.plate.style}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px"><span class="cb-badge">${e.bookTitle}</span><span class="cb-badge">${e.plate.style}</span>${e.plate.tokens?.length ? `<span class="cb-badge" style="font-size:9px;background:var(--paper-2)">${e.plate.tokens.length} tokens</span>` : ''}</div>
             <h4>${e.plate.name}</h4>
             <p>${e.plate.description.slice(0,96)}…</p>
-            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${(e.plate.props||[]).slice(0,2).map(pr=>`<span class="cb-badge" style="font-size:9px">${pr.split(':')[0]}</span>`).join('')}</div>
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${(e.plate.props||[]).slice(0,2).map(pr=>`<span class="cb-badge" style="font-size:9px">${pr.split(':')[0].slice(0,18)}</span>`).join('')}${e.plate.tokens?.length ? `<span class="cb-badge" style="font-size:9px">${e.plate.tokens[0].name}: ${e.plate.tokens[0].value.slice(0,12)}</span>` : ''}</div>
+            ${lineage.length ? `<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap"><span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">From:</span>${lineage.slice(0,3).map(r=>`<span class="cb-badge" style="font-size:9px;background:#fff;border-color:var(--brass-2)">${r}</span>`).join('')}</div>` : ''}
           </div>
-        </div>
-      `).join('')}
+        </div>`
+      }).join('')}
     </div>
-    ${results.length>120 ? `<div class="cb-empty">Showing 120 of ${results.length} — refine search</div>` : ''}
+    ${filteredResults.length>state.dictLimit ? `<div style="display:flex;justify-content:center;margin:16px 0"><button class="cb-btn primary" id="dict-show-all">Show all ${filteredResults.length} plates (${filteredResults.length-state.dictLimit} more)</button><button class="cb-btn" id="dict-load-more" style="margin-left:8px">Load +60</button></div>` : filteredResults.length>0 && state.dictLimit>120 ? `<div style="display:flex;justify-content:center;margin:12px 0"><button class="cb-btn" id="dict-show-less">Show 120</button><span style="font-family:var(--mono);font-size:11px;color:var(--stone-2);align-self:center;margin-left:10px">Showing ${visible.length} of ${filteredResults.length}</span></div>` : ''}
+    ${filteredResults.length===0 ? `<div class="cb-empty" style="padding:24px;text-align:center">⁂ No plates match "${escapeHtml(state.dictQuery)}"${state.dictBook?` in ${booksById[state.dictBook]?.title||state.dictBook}`:''}${state.dictStyle?` • ${state.dictStyle}`:''}${state.dictRepo?` • repo:${state.dictRepo}`:''} — try clearing filters</div>` : ''}
 
     <!-- Colophon -->
     <div class="cb-colophon">
@@ -699,7 +898,14 @@ function renderStudio(){
   const activeCuration = state.activeCuration ? curations.find(c=>c.id===state.activeCuration) : null
   const activeGuide = state.activeGuide ? getAppGuide(state.activeGuide) : null
   return `
-    <div class="cb-kicker" style="margin-bottom:12px"><i></i> STUDIO • WORKSHOP • PLAYGROUND • DESIGN STUDIO ${activeCuration ? `• <span style="color:var(--brass-3)">SET: ${activeCuration.title.toUpperCase()}</span>` : ''} ${activeGuide ? `• <span style="color:var(--forest)">GUIDE: ${activeGuide.title.toUpperCase()}</span>` : ''}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div class="cb-kicker" style="margin:0"><i></i> STUDIO • WORKSHOP • PLAYGROUND • DESIGN STUDIO ${activeCuration ? `• <span style="color:var(--brass-3)">SET: ${activeCuration.title.toUpperCase()}</span>` : ''} ${activeGuide ? `• <span style="color:var(--forest)">GUIDE: ${activeGuide.title.toUpperCase()}</span>` : ''}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${state.isShared?`<span class="cb-badge" style="background:var(--brass);color:#fff;border-color:var(--brass)">⁂ Shared system</span>`:''}
+        <button class="cb-btn primary" id="view-design-card" style="background:var(--ink);color:#fff">View Design Card</button>
+        <button class="cb-btn" id="copy-share-link">Copy Share Link</button>
+      </div>
+    </div>
 
     <!-- Top bar stats -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">
@@ -785,6 +991,10 @@ function renderStudio(){
             <button class="cb-btn" data-export="json">JSON</button>
             <button class="cb-btn" id="copy-export">Copy</button>
           </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+            <button class="cb-btn" id="copy-share-link-2" style="flex:1;border-color:var(--brass);color:var(--brass-3)">Copy Share Link</button>
+            <button class="cb-btn primary" id="view-design-card-2" style="flex:1">View Card</button>
+          </div>
           <div class="cb-token-export" id="token-export">${escapeHtml(tokensToCss(st.tokens))}</div>
           <div style="margin-top:8px;font-family:var(--serif);font-style:italic;font-size:11px;color:var(--ink-2);line-height:1.4">Tokens travel. Every plate here uses these three. If it does not travel, it does not stay. ⁂ Brass & oxblood & forest — quiet luxury, letterpress-grade.</div>
         </div>
@@ -840,7 +1050,35 @@ function attachEvents(){
   document.getElementById('dict-search')?.addEventListener('input',(e)=>{ state.dictQuery=(e.target as HTMLInputElement).value; render() })
   document.getElementById('dict-book')?.addEventListener('change',(e)=>{ state.dictBook=(e.target as HTMLSelectElement).value; render() })
   document.getElementById('dict-style')?.addEventListener('change',(e)=>{ state.dictStyle=(e.target as HTMLSelectElement).value; render() })
-  document.getElementById('dict-clear')?.addEventListener('click',()=>{ state.dictQuery=''; state.dictBook=''; state.dictStyle=''; render() })
+  document.getElementById('dict-repo')?.addEventListener('change',(e)=>{ state.dictRepo=(e.target as HTMLSelectElement).value; state.dictLimit=120; render() })
+  document.getElementById('dict-clear')?.addEventListener('click',()=>{ state.dictQuery=''; state.dictBook=''; state.dictStyle=''; state.dictRepo=''; state.dictLimit=120; render() })
+  document.getElementById('dict-show-all')?.addEventListener('click',()=>{ state.dictLimit=1000; render() })
+  document.getElementById('dict-load-more')?.addEventListener('click',()=>{ state.dictLimit=Math.min(state.dictLimit+60, 1000); render() })
+  document.getElementById('dict-show-less')?.addEventListener('click',()=>{ state.dictLimit=120; render() })
+  document.querySelectorAll('[data-filter-repo]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const repo=(el as HTMLElement).dataset.filterRepo!
+      state.dictRepo=repo
+      state.dictLimit=120
+      if(state.view!=='catalogue') setView('catalogue'); else render()
+    })
+  })
+  // keyboard nav for reader: ←/→ or j/k
+  document.getElementById('cb-reader')?.addEventListener('keydown',(e)=>{
+    const ke = e as KeyboardEvent
+    if(['ArrowLeft','ArrowRight','j','k'].includes(ke.key)){
+      const book = booksById[state.catalogueBook]
+      if(!book) return
+      const idx = book.plates.findIndex(p=>p.id===state.cataloguePlate)
+      if(idx<0) return
+      if(ke.key==='ArrowLeft' || ke.key==='j'){
+        if(idx>0){ state.cataloguePlate=book.plates[idx-1].id; render(); setTimeout(()=>document.getElementById('cb-reader')?.focus(),0) }
+      } else if(ke.key==='ArrowRight' || ke.key==='k'){
+        if(idx<book.plates.length-1){ state.cataloguePlate=book.plates[idx+1].id; render(); setTimeout(()=>document.getElementById('cb-reader')?.focus(),0) }
+      }
+      e.preventDefault()
+    }
+  })
   document.querySelectorAll('[data-open]').forEach(el=>{
     el.addEventListener('click',()=>{
       const [bookId, plateId] = (el as HTMLElement).dataset.open!.split(':')
@@ -1025,6 +1263,19 @@ function attachEvents(){
     const html = (document.getElementById('atelier-page') as HTMLElement).innerHTML
     const w = window.open('','_blank'); if(!w) return; w.document.write(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Studio Preview</title><style>body{margin:0;font-family:system-ui}</style>${html}`); w.document.close()
   })
+
+  // Modal close on Esc / backdrop
+  document.getElementById('cb-modal-close')?.addEventListener('click',()=>{ state.activeDesignCard=null; render() })
+  document.getElementById('cb-modal-backdrop')?.addEventListener('click',(e)=>{
+    if((e.target as HTMLElement).id==='cb-modal-backdrop'){ state.activeDesignCard=null; render() }
+  })
+  // Esc to close modal
+  if(!document.body.dataset.escBound){
+    document.addEventListener('keydown',(e)=>{
+      if(e.key==='Escape' && state.activeDesignCard){ state.activeDesignCard=null; render() }
+    })
+    document.body.dataset.escBound='1'
+  }
 }
 
 function escapeHtml(s:string){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }

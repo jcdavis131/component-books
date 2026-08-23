@@ -34,6 +34,8 @@ export interface Plate {
   material?: string[]
   era?: '1920s' | '1960s' | '1990s' | '2020s' | 'timeless'
   mood?: string[]
+  repoRef?: string[]
+  lineage?: string
 }
 
 export interface Book {
