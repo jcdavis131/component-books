@@ -1264,18 +1264,110 @@ function attachEvents(){
     const w = window.open('','_blank'); if(!w) return; w.document.write(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Studio Preview</title><style>body{margin:0;font-family:system-ui}</style>${html}`); w.document.close()
   })
 
-  // Modal close on Esc / backdrop
-  document.getElementById('cb-modal-close')?.addEventListener('click',()=>{ state.activeDesignCard=null; render() })
-  document.getElementById('cb-modal-backdrop')?.addEventListener('click',(e)=>{
-    if((e.target as HTMLElement).id==='cb-modal-backdrop'){ state.activeDesignCard=null; render() }
+  // Share via URL
+  const shareEncode = encodeState(state.atelier)
+  const shareUrl = `${location.origin}${location.pathname}#/studio?share=${shareEncode}`
+  const shortUrl = `${location.origin}${location.pathname}#/s/${shareEncode}`
+  async function doCopyShare(btn: HTMLElement){
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      const orig = btn.textContent; btn.textContent='Copied link!'; setTimeout(()=>btn.textContent=orig!,1200)
+      // also update hash to reflect share without reload
+      history.replaceState(null,'', `#/studio?share=${shareEncode}`)
+    } catch {
+      prompt('Copy share link:', shareUrl)
+    }
+  }
+  document.getElementById('copy-share-link')?.addEventListener('click',(e)=> doCopyShare(e.currentTarget as HTMLElement))
+  document.getElementById('copy-share-link-2')?.addEventListener('click',(e)=> doCopyShare(e.currentTarget as HTMLElement))
+  document.getElementById('cb-modal-share')?.addEventListener('click',(e)=> doCopyShare(e.currentTarget as HTMLElement))
+
+  // Design Card modal triggers
+  function openDesignCard(nameHint?: string){
+    const card = generateDesignCardFromAtelier(state.atelier, nameHint)
+    state.activeDesignCard = card
+    state.showDesignCardModal = true
+    // persist card
+    try {
+      const { saveDesignCard } = require('./designCards.ts') as any
+      if (saveDesignCard) saveDesignCard(card)
+    } catch {
+      try { localStorage.setItem('cb-design-cards', JSON.stringify([card])) } catch {}
+    }
+    try { saveAtelierToStorage(state.atelier) } catch {}
+    render()
+  }
+  document.getElementById('view-design-card')?.addEventListener('click',()=> openDesignCard())
+  document.getElementById('view-design-card-2')?.addEventListener('click',()=> openDesignCard())
+  document.querySelectorAll('[data-view-card]').forEach(el=>{
+    el.addEventListener('click',(e)=>{
+      e.stopPropagation()
+      const cid = (el as HTMLElement).dataset.viewCard!
+      const cur = curations.find(c=>c.id===cid)
+      if (!cur) { openDesignCard(); return }
+      // temporarily build atelier from curation for card preview
+      const tmpAtelier = { ...state.atelier, picks: { ...state.atelier.picks }, stack: [...state.atelier.stack], tokens: { ...state.atelier.tokens, accent: cur.accent } }
+      for (const ref of cur.plates) (tmpAtelier.picks as any)[ref.bookId]=ref.plateId
+      const seen = new Set<string>(); const ordered: string[]=[]
+      for (const r of cur.plates){ if(!seen.has(r.bookId)){ seen.add(r.bookId); ordered.push(r.bookId) } }
+      for (const b of state.atelier.stack){ if(!seen.has(b)) ordered.push(b) }
+      tmpAtelier.stack = ordered
+      const card = generateDesignCardFromAtelier(tmpAtelier as any, `${cur.title} — ${cur.subtitle}`)
+      state.activeDesignCard = card
+      state.showDesignCardModal = true
+      render()
+    })
   })
+  document.querySelectorAll('[data-view-guide-card]').forEach(el=>{
+    el.addEventListener('click',(e)=>{
+      e.stopPropagation()
+      const gid = (el as HTMLElement).dataset.viewGuideCard!
+      const guide = getAppGuide(gid)
+      if (!guide) { openDesignCard(); return }
+      const tmpAtelier = { tokens: { ...guide.tokens }, picks: {} as any, stack: [] as string[] }
+      for (const ref of guide.stack) (tmpAtelier.picks as any)[ref.bookId]=ref.plateId
+      const seen = new Set<string>(); const ordered: string[]=[]
+      for (const r of guide.stack){ if(!seen.has(r.bookId)){ seen.add(r.bookId); ordered.push(r.bookId) } }
+      tmpAtelier.stack = ordered
+      const card = generateDesignCardFromAtelier(tmpAtelier as any, guide.title)
+      state.activeDesignCard = card
+      state.showDesignCardModal = true
+      render()
+    })
+  })
+
+  // Modal actions
+  document.getElementById('cb-modal-close')?.addEventListener('click',()=>{ state.activeDesignCard=null; state.showDesignCardModal=false; render() })
+  document.getElementById('cb-modal-close-2')?.addEventListener('click',()=>{ state.activeDesignCard=null; state.showDesignCardModal=false; render() })
+  document.getElementById('cb-modal-backdrop')?.addEventListener('click',(e)=>{
+    if((e.target as HTMLElement).id==='cb-modal-backdrop'){ state.activeDesignCard=null; state.showDesignCardModal=false; render() }
+  })
+  document.getElementById('cb-modal-copy-html')?.addEventListener('click', async()=>{
+    if (!state.activeDesignCard) return
+    const card = state.activeDesignCard
+    const { assemblePage } = await import('./atelier.ts')
+    const html = assemblePage({ tokens: card.tokens, picks: card.picks, stack: card.stack } as any)
+    await navigator.clipboard.writeText(html)
+    const b=document.getElementById('cb-modal-copy-html') as HTMLButtonElement; const o=b.textContent; b.textContent='Copied!'; setTimeout(()=>b.textContent=o,900)
+  })
+  document.getElementById('cb-modal-copy-css')?.addEventListener('click', async()=>{
+    if (!state.activeDesignCard) return
+    const { tokensToCss } = await import('./atelier.ts')
+    const css = tokensToCss(state.activeDesignCard.tokens)
+    await navigator.clipboard.writeText(css)
+    const b=document.getElementById('cb-modal-copy-css') as HTMLButtonElement; const o=b.textContent; b.textContent='Copied!'; setTimeout(()=>b.textContent=o,900)
+  })
+
   // Esc to close modal
   if(!document.body.dataset.escBound){
     document.addEventListener('keydown',(e)=>{
-      if(e.key==='Escape' && state.activeDesignCard){ state.activeDesignCard=null; render() }
+      if(e.key==='Escape' && state.activeDesignCard){ state.activeDesignCard=null; state.showDesignCardModal=false; render() }
     })
     document.body.dataset.escBound='1'
   }
+
+  // Persist atelier on any atelier change
+  try { saveAtelierToStorage(state.atelier) } catch {}
 }
 
 function escapeHtml(s:string){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
