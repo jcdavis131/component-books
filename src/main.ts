@@ -10,7 +10,7 @@ import { applicationGuides, getAppGuide } from './applicationGuides.ts'
 import { decisionSteps, getDecisionStep, getNextStep, getPrevStep } from './decisionGuide.ts'
 import { vizPractices, getPractice } from './dataVizBestPractices.ts'
 import { compositeSources, compositeCategories, decisionMappings, vizMappings } from './research/compositeLibrary.ts'
-import { generateDesignCardFromAtelier, designCardToSharePayload, sharePayloadToDesignCard } from './designCards.ts'
+import { generateDesignCardFromAtelier, designCardToSharePayload, sharePayloadToDesignCard, saveDesignCard } from './designCards.ts'
 import type { DesignCard } from './designCards.ts'
 
 const app = document.getElementById('app')!
@@ -1288,12 +1288,7 @@ function attachEvents(){
     state.activeDesignCard = card
     state.showDesignCardModal = true
     // persist card
-    try {
-      const { saveDesignCard } = require('./designCards.ts') as any
-      if (saveDesignCard) saveDesignCard(card)
-    } catch {
-      try { localStorage.setItem('cb-design-cards', JSON.stringify([card])) } catch {}
-    }
+    try { saveDesignCard(card) } catch { try { localStorage.setItem('cb-design-cards', JSON.stringify([card])) } catch {} }
     try { saveAtelierToStorage(state.atelier) } catch {}
     render()
   }

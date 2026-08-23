@@ -1980,3 +1980,21 @@ html, body{ overflow-x:hidden; max-width:100vw }
 .cb-tabs{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch }
 .cb-tabs::-webkit-scrollbar{ display:none }
 
+/* Modal responsive overrides */
+.cb-modal-backdrop{ -webkit-backdrop-filter: blur(8px) }
+.cb-modal-body{ }
+@media(max-width: 860px){
+  .cb-modal-body{ grid-template-columns:1fr !important }
+  .cb-card-grid{ grid-template-columns:1fr !important }
+}
+@media(max-width: 640px){
+  .cb-modal{ width:96vw !important; max-height:92vh !important; border-radius:12px !important }
+  .cb-modal-backdrop{ padding:8px !important }
+}
+@media(min-width: 861px) and (max-width: 1100px){
+  .cb-card-grid{ grid-template-columns:repeat(2,1fr) !important }
+}
+@media(min-width: 1101px){
+  .cb-card-grid{ grid-template-columns:repeat(3,1fr) !important }
+}
+
