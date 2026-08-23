@@ -9,6 +9,7 @@ import { thinkingChapters, getThinkingChapter } from './designSystemThinking.ts'
 import { applicationGuides, getAppGuide } from './applicationGuides.ts'
 import { decisionSteps, getDecisionStep, getNextStep, getPrevStep } from './decisionGuide.ts'
 import { vizPractices, getPractice } from './dataVizBestPractices.ts'
+import { compositeSources, compositeCategories, decisionMappings, vizMappings } from './research/compositeLibrary.ts'
 
 const app = document.getElementById('app')!
 
@@ -417,6 +418,45 @@ function renderGuide(){
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${g.stack.slice(0,3).map(s=>`<span class="cb-badge" style="font-size:9px">${booksById[s.bookId]?.title||s.bookId}</span>`).join('')}${g.stack.length>3?`<span class="cb-badge" style="font-size:9px">+${g.stack.length-3}</span>`:''}</div>
         </div>
       `).join('')}
+    </div>
+
+    <!-- COMPOSITE LIBRARY — GREAT REPOS -->
+    <div style="border-top:1px solid var(--paper-3);padding-top:22px;margin:8px 0 22px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div class="cb-kicker"><i></i> COMPOSITE LIBRARY • 16 GREAT REPOS • Convergence • Real stars Aug ’26</div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--stone-2)">Own the code > npm • Unstyled primitives + tokens first • 44px • tabular-nums</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px">
+        ${compositeSources.slice(0,8).map(s=>`
+          <div style="background:#fff;border:1px solid var(--paper-3);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-3)">${s.id}</span><span style="font-family:var(--mono);font-size:10px;color:var(--stone-2)">★ ${s.stars.toLocaleString()}</span></div>
+            <div style="font-family:var(--serif-display);font-size:14px">${s.repo}</div>
+            <div style="font-family:var(--serif);font-size:12px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${s.description.slice(0,140)}…</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${s.patterns.slice(0,3).map(p=>`<span class="cb-badge" style="font-size:9px">${p}</span>`).join('')}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:14px">
+        ${compositeCategories.slice(0,6).map(cat=>`
+          <div style="background:linear-gradient(180deg,#fff,var(--paper-2));border:1px solid var(--paper-3);border-radius:10px;padding:10px 12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass-3)">${cat.id}</span><span style="font-family:var(--mono);font-size:9px;color:var(--stone-2)">${cat.sources.length} sources • ${cat.components.length} comps</span></div>
+            <div style="font-family:var(--serif-display);font-size:13px;margin-bottom:4px">${cat.title}</div>
+            <div style="font-family:var(--serif);font-size:11px;color:var(--ink-2);line-height:1.4">${cat.description.slice(0,110)}…</div>
+            <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${cat.components.slice(0,3).map(c=>`<span class="cb-badge" style="font-size:9px">${c.name}</span>`).join('')}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px" class="cb-manifesto-grid">
+        <div style="background:#fff;border:1px dashed var(--paper-3);border-radius:10px;padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--forest);margin-bottom:6px">Decision → Sources</div>
+          ${decisionMappings.slice(0,4).map(d=>`<div style="font-family:var(--mono);font-size:11px;margin:3px 0"><span style="color:var(--stone-2)">${d.decisionStepId}</span> → ${d.relevantSources.slice(0,2).join(', ')}</div>`).join('')}
+        </div>
+        <div style="background:#fff;border:1px dashed var(--paper-3);border-radius:10px;padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--oxblood);margin-bottom:6px">Viz → Sources</div>
+          ${vizMappings.slice(0,4).map(v=>`<div style="font-family:var(--mono);font-size:11px;margin:3px 0"><span style="color:var(--stone-2)">${v.practiceId}</span> → ${v.sources.slice(0,2).join(', ')}</div>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--stone-2)">Full research: docs/RESEARCH.md • 16 repos • Convergence: copy-paste > npm, tokens first, tables are truth, bars beat pie, 140ms skeleton • Zero-deps.</div>
     </div>
 
     <!-- DECISION WALKTHROUGH -->
