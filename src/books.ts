@@ -28,3 +28,8 @@ export const books: Book[] = [
 ]
 
 export const booksById = Object.fromEntries(books.map(b => [b.id, b])) as Record<string, Book>
+
+// Re-export composite research for provenance linking (minimal touch)
+// Plates can reference compositeLibrary via provenance / repoRef
+export { compositeLibrary, compositeSources, compositeCategories, decisionMappings, vizMappings } from './research/compositeLibrary.ts'
+export type { CompositeSource, CompositeCategory, CompositeComponent } from './research/compositeLibrary.ts'
